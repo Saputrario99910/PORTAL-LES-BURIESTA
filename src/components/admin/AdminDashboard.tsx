@@ -6,9 +6,11 @@ import {
   initialRecurringBillingRules,
   RecurringBillingRule,
 } from '../../data/adminMockData.ts';
+import { teachingClassesData, TeachingClass } from '../../data/teachingClassesData.ts';
 import { ProofModal } from './ProofModal.tsx';
 import { UploadGalleryModal } from './UploadGalleryModal.tsx';
 import { AttendanceModal } from './AttendanceModal.tsx';
+import { ClassSessionModal } from './ClassSessionModal.tsx';
 import { BillingSettingsModal } from './BillingSettingsModal.tsx';
 import { PartialPaymentModal } from './PartialPaymentModal.tsx';
 import { ThemeTogglePill } from '../ThemeTogglePill.tsx';
@@ -27,10 +29,15 @@ import {
   Wallet,
   AlertCircle,
   TrendingUp,
-  ArrowDown,
   Settings,
   Banknote,
-  Percent,
+  GraduationCap,
+  Users,
+  Award,
+  BookOpen,
+  Calendar,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -38,7 +45,7 @@ interface AdminDashboardProps {
   onNavigate?: (path: string) => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, onNavigate }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }) => {
   const [payments, setPayments] = useState<AdminPaymentVerification[]>(initialAdminPayments);
   const [activeFilter, setActiveFilter] = useState<'menunggu' | 'lunas' | 'cicilan' | 'semua'>('semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -49,6 +56,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
   const [showBillingModal, setShowBillingModal] = useState<boolean>(false);
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [showAttendanceModal, setShowAttendanceModal] = useState<boolean>(false);
+  
+  // Modal Khusus Sesi Mengajar & Penilaian Per Kelas
+  const [selectedTeachingClass, setSelectedTeachingClass] = useState<TeachingClass | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Billing Rules
@@ -66,7 +76,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
     setToastMessage(message);
     setTimeout(() => {
       setToastMessage(null);
-    }, 3500);
+    }, 4000);
   };
 
   // 1. Verifikasi Lunas Penuh Langsung
@@ -98,15 +108,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
       paid_amount: targetItem.amount,
       remaining_amount: 0,
       payment_method: targetItem.sender_bank || 'Transfer Bank',
-      status: 'LUNAS',
-      payment_date: new Date().toLocaleDateString('id-ID'),
+      payment_date: new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
     });
 
-    showToast(`Pembayaran ${targetItem.student_name} berhasil diverifikasi Lunas.`);
+    showToast(`Pembayaran ${targetItem.student_name} (${targetItem.billing_month}) berhasil diverifikasi Lunas!`);
   };
 
-  // 2. Simpan Pembayaran Cicilan / Sebagian
-  const handleSubmitPartialPayment = (
+  // 2. Simpan Pembayaran Cicilan / Angsuran Baru
+  const handleSavePartialPayment = (
     paymentId: string,
     paidAmount: number,
     paymentMethod: string,
@@ -116,31 +129,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
     if (!targetItem) return;
 
     const currentPaid = targetItem.paid_amount || 0;
-    const newTotalPaid = Math.min(targetItem.amount, currentPaid + paidAmount);
+    const newTotalPaid = currentPaid + paidAmount;
     const newRemaining = Math.max(0, targetItem.amount - newTotalPaid);
-    const newStatus: 'lunas' | 'cicilan' = newRemaining === 0 ? 'lunas' : 'cicilan';
-
-    const timestampStr = new Date().toLocaleString('id-ID', {
+    const newStatus = newRemaining === 0 ? 'lunas' : 'cicilan';
+    const todayDate = new Date().toLocaleDateString('id-ID', {
       day: 'numeric',
-      month: 'short',
+      month: 'long',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
 
     const updatedItem: AdminPaymentVerification = {
       ...targetItem,
+      status: newStatus,
       paid_amount: newTotalPaid,
       remaining_amount: newRemaining,
-      status: newStatus,
-      verified_at: newStatus === 'lunas' ? timestampStr : targetItem.verified_at,
+      verified_at: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
       payment_history: [
         ...(targetItem.payment_history || []),
         {
-          date: timestampStr,
+          date: todayDate,
           amount: paidAmount,
           method: paymentMethod,
-          note: note || 'Pembayaran cicilan',
+          note: note || 'Cicilan SPP',
         },
       ],
     };
@@ -148,8 +161,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
     setPayments((prev) => prev.map((item) => (item.id === paymentId ? updatedItem : item)));
     setSelectedPartialPayment(null);
 
-    // Kirim update ke Google Sheets
-    syncToGoogleSheets('pembayaran_lunas', {
+    // Kirim pencatatan cicilan ke Google Sheets
+    syncToGoogleSheets('catat_pembayaran', {
       student_name: targetItem.student_name,
       class_level: targetItem.student_class,
       period: targetItem.billing_month,
@@ -158,15 +171,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
       amount: paidAmount,
       paid_amount: newTotalPaid,
       remaining_amount: newRemaining,
-      payment_method: paymentMethod,
-      status: newStatus === 'lunas' ? 'LUNAS' : 'CICILAN',
-      payment_date: timestampStr,
+      status: newStatus,
+      payment_method: paymentMethod + (note ? ` (${note})` : ''),
+      payment_date: todayDate,
     });
 
     showToast(
-      newStatus === 'lunas'
-        ? `Tagihan ${targetItem.student_name} telah Lunas Penuh!`
-        : `Cicilan ${formatRupiah(paidAmount)} berhasil dicatat. Sisa kekurangan: ${formatRupiah(newRemaining)}.`
+      `Pembayaran Rp ${paidAmount.toLocaleString('id-ID')} untuk ${targetItem.student_name} tersimpan. Sisa piutang: ${formatRupiah(newRemaining)}.`
     );
   };
 
@@ -180,7 +191,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
 
   // 4. Generate Tagihan Bulanan ke Semua Siswa
   const handleGenerateMonthlyBills = (rule: RecurringBillingRule, targetMonth: string) => {
-    const newBills: AdminPaymentVerification[] = adminStudentOptions.map((student, idx) => ({
+    const newBills: AdminPaymentVerification[] = adminStudentOptions.map((student) => ({
       id: `gen_pay_${Date.now()}_${student.id}`,
       student_id: student.id,
       student_name: student.name,
@@ -249,115 +260,170 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
         ? 'kenzo-404'
         : item.student_id === 'std_02'
         ? 'nadira-202'
-        : item.id;
-    const pin = '123456';
-    const text = `Link Portal Wali Murid Rumah Belajar English:\n${origin}/?token=${token}\nPIN Akses: ${pin}`;
-    navigator.clipboard.writeText(text);
-    showToast(`Link akses dan PIN untuk wali ${item.student_name} berhasil disalin ke clipboard`);
+        : `${item.student_id}-token`;
+
+    const fullUrl = `${origin}/?token=${token}`;
+    const defaultPin = item.student_id === 'std_01' ? '123456' : '654321';
+
+    const textToCopy = `Link Portal Wali Murid Rumah Belajar English:\nNama: ${item.student_name}\nLink: ${fullUrl}\nPIN Masuk: ${defaultPin}`;
+
+    navigator.clipboard.writeText(textToCopy);
+    showToast(`Link akses & PIN untuk wali ${item.student_name} berhasil disalin!`);
   };
 
-  const handleUploadSuccess = (data: {
-    studentId: string;
-    studentName: string;
-    caption: string;
-    imageUrl: string;
-  }) => {
-    setShowUploadModal(false);
-    showToast(`Foto berhasil diunggah untuk siswa ${data.studentName}.`);
-  };
-
-  // Filter pembayaran
+  // Filter Data Pembayaran
   const filteredPayments = payments.filter((item) => {
-    const matchFilter =
+    const matchesFilter =
       activeFilter === 'semua' ? true : item.status === activeFilter;
-    const matchSearch =
+    const matchesSearch =
       item.student_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.student_class.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.billing_month.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.billing_title && item.billing_title.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchFilter && matchSearch;
+      item.billing_month.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesFilter && matchesSearch;
   });
 
-  const waitingCount = payments.filter((p) => p.status === 'menunggu').length;
+  // Kalkulasi Keuangan
   const verifiedCount = payments.filter((p) => p.status === 'lunas').length;
   const partialCount = payments.filter((p) => p.status === 'cicilan').length;
+  const waitingCount = payments.filter((p) => p.status === 'menunggu').length;
 
-  // Total uang masuk riil (lunas penuh + cicilan yang sudah diterima)
   const totalReceivedIncome = payments.reduce((acc, curr) => {
     if (curr.status === 'lunas') return acc + curr.amount;
-    return acc + (curr.paid_amount || 0);
+    if (curr.status === 'cicilan') return acc + (curr.paid_amount || 0);
+    return acc;
   }, 0);
 
-  // Total sisa piutang / kekurangan tagihan yang belum terbayar
   const totalUnpaidAmount = payments.reduce((acc, curr) => {
-    if (curr.status === 'lunas') return acc;
-    if (curr.remaining_amount !== undefined) return acc + curr.remaining_amount;
-    return acc + curr.amount;
+    if (curr.status === 'menunggu') return acc + curr.amount;
+    if (curr.status === 'cicilan') return acc + (curr.remaining_amount || 0);
+    return acc;
   }, 0);
 
-  const totalBillingAmount = payments.reduce((acc, curr) => acc + curr.amount, 0);
-  const collectionPercentage =
-    totalBillingAmount > 0 ? Math.round((totalReceivedIncome / totalBillingAmount) * 100) : 0;
+  const totalBilled = totalReceivedIncome + totalUnpaidAmount;
+  const collectionPercentage = totalBilled > 0 ? Math.round((totalReceivedIncome / totalBilled) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 pb-20">
-      {/* Top Bar Admin Desktop Lebar */}
-      <header className="sticky top-0 z-30 bg-slate-900 text-white border-b-2 border-emerald-500 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      {/* Header Top Bar */}
+      <header className="sticky top-0 z-30 bg-blue-950 text-white border-b-2 border-amber-400 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onBackToPortal}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 transition-colors"
+              className="w-10 h-10 rounded-xl bg-blue-900 hover:bg-blue-800 text-white flex items-center justify-center transition-colors border border-blue-700 shadow-xs"
+              title="Lihat Tampilan Portal Wali Murid"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Portal Wali</span>
+              <ArrowLeft className="w-5 h-5 text-amber-400" />
             </button>
-
-            <span className="text-slate-600">|</span>
-
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-base">
-                A
-              </div>
-              <div>
-                <h1 className="text-sm sm:text-base font-black leading-tight">
-                  Dashboard Pemilik Lembaga
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight">
+                  Dashboard Pemilik Lembaga (Admin & Tutor)
                 </h1>
-                <span className="text-[11px] text-emerald-400 font-semibold block">
-                  Rumah Belajar English · Panel Administrasi & Keuangan
+                <span className="bg-amber-400 text-blue-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                  All-in-One
                 </span>
               </div>
+              <span className="text-xs text-blue-200 block font-medium">
+                Rumah Belajar English · Kelola Kelas, Absensi, Nilai & Keuangan SPP
+              </span>
             </div>
           </div>
 
-          {/* Quick Info & Tombol Navigasi Tutor & Theme Switcher */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <ThemeTogglePill />
-
-            {onNavigate && (
-              <button
-                type="button"
-                onClick={() => onNavigate('/tutor')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs border border-blue-700 transition-all active:scale-95 shadow-xs"
-                title="Pindah ke Dashboard Tutor (/tutor)"
-              >
-                <span>Mode Tutor</span>
-              </button>
-            )}
-
-            <div className="hidden sm:flex items-center gap-2 text-xs text-slate-300 font-medium">
+            <div className="bg-blue-900/90 text-slate-200 border border-blue-700/80 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Miss Sarah (Admin Utama)</span>
+              <span>Miss Sarah (Pemilik & Tutor)</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Konten Utama Desktop (Lebar & Terstruktur) */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        {/* KARTU RINGKASAN DI BAGIAN ATAS HALAMAN */}
-        <section aria-label="Ringkasan Pemasukan dan Tagihan Tertunda" className="space-y-2.5">
+      {/* Konten Utama */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-7">
+        
+        {/* BAGIAN 1: KOTAK-KOTAK KELAS MENGAJAR (ALL-IN-ONE TUTOR & ABSENSI/NILAI) */}
+        <section aria-label="Kelola Kelas Mengajar">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+                <GraduationCap className="w-6 h-6 text-blue-900" />
+                <span>Kelas Pembelajaran Anda (Pilih Kelas untuk Absensi & Nilai)</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                Pilih kelas yang akan diajar. Anda bisa langsung mencatat absensi dan mengisi nilai tugas/test (opsional) yang otomatis tersimpan rapi per nomor pertemuan di Google Sheets.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowUploadModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm transition-all active:scale-95 shrink-0 self-start sm:self-auto"
+            >
+              <PlusCircle className="w-4 h-4 text-slate-950" />
+              <span>Upload Foto Kegiatan</span>
+            </button>
+          </div>
+
+          {/* Grid 4 Kotak Kelas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {teachingClassesData.map((cls) => (
+              <div
+                key={cls.id}
+                className="bg-white rounded-3xl border-2 border-slate-200 hover:border-blue-900 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 border border-slate-200">
+                      {cls.room}
+                    </span>
+                    <span className="text-xs font-bold text-blue-900 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>{cls.students_count} Siswa</span>
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-900 transition-colors">
+                      {cls.name}
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-600 mt-0.5 line-clamp-1">
+                      {cls.level}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 text-xs font-medium text-slate-500 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-blue-900" />
+                      <span>{cls.schedule}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Kurikulum: {cls.total_meetings} Pertemuan</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tombol Aksi Masuk Kelas */}
+                <div className="pt-4 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTeachingClass(cls)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-blue-900 hover:bg-blue-950 active:bg-blue-800 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                  >
+                    <ClipboardCheck className="w-4 h-4 text-amber-300" />
+                    <span>Buka & Isi Absensi/Nilai</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-70" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* BAGIAN 2: RINGKASAN KEUANGAN LEMBAGA */}
+        <section aria-label="Ringkasan Pemasukan dan Tagihan Tertunda" className="space-y-2.5 pt-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xs sm:text-sm font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -428,25 +494,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
                 <button
                   type="button"
                   onClick={() => setActiveFilter('cicilan')}
-                  className="font-extrabold text-amber-800 hover:text-amber-950 underline"
+                  className="font-extrabold text-amber-900 hover:text-amber-950 underline"
                 >
-                  Lihat Cicilan ({partialCount})
+                  Filter Cicilan →
                 </button>
               </div>
             </div>
 
-            {/* Kartu 3: Pengaturan Tarif Tagihan Berulang */}
-            <div className="bg-white rounded-2xl border-2 border-blue-400 p-5 shadow-xs bg-gradient-to-br from-white via-white to-blue-50/50 flex flex-col justify-between">
+            {/* Kartu 3: Pengaturan Tarif Tagihan Lembaga */}
+            <div className="bg-white rounded-2xl border-2 border-blue-300 p-5 shadow-xs bg-gradient-to-br from-white via-white to-blue-50/50 flex flex-col justify-between">
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 font-extrabold text-xs">
                     <Settings className="w-3.5 h-3.5 text-blue-700" />
-                    <span>Otomatisasi Tagihan</span>
+                    <span>Tarif SPP Standar</span>
                   </div>
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-600 uppercase tracking-wide">
-                    Tarif Tagihan Rutin
-                  </h3>
-                  <div className="text-lg font-black text-blue-950 tracking-tight pt-1">
+                  <div className="text-xs sm:text-sm font-bold text-slate-600 uppercase tracking-wide">
                     {billingRules[0]?.title || 'SPP Reguler'}
                   </div>
                   <div className="text-xl font-black text-blue-800 font-mono">
@@ -477,7 +540,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
           </div>
         </section>
 
-        {/* Baris Judul Tabel & Tombol-tombol Aksi */}
+        {/* BAGIAN 3: MANAJEMEN PEMBAYARAN SISWA */}
         <div id="verification-table-section" className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-xs scroll-mt-20">
           <div>
             <div className="flex items-center gap-2">
@@ -491,9 +554,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
             </p>
           </div>
 
-          {/* Tombol Aksi Kanan Atas */}
           <div className="flex flex-wrap sm:flex-nowrap gap-2.5 w-full lg:w-auto shrink-0">
-            {/* Tombol Pengaturan & Terbitkan Tagihan */}
             <button
               type="button"
               onClick={() => setShowBillingModal(true)}
@@ -502,295 +563,228 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
               <Settings className="w-4 h-4 text-amber-400" />
               <span>Atur / Terbitkan Tagihan</span>
             </button>
-
-            {/* Tombol Upload Galeri */}
-            <button
-              type="button"
-              onClick={() => setShowUploadModal(true)}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
-            >
-              <PlusCircle className="w-4 h-4 text-emerald-400" />
-              <span>Foto Kegiatan</span>
-            </button>
-
-            {/* Tombol Isi Absensi Kelas */}
-            <button
-              type="button"
-              onClick={() => setShowAttendanceModal(true)}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
-            >
-              <ClipboardCheck className="w-4 h-4 text-emerald-200" />
-              <span>Absensi Kelas</span>
-            </button>
           </div>
         </div>
 
-        {/* Area Tabel & Kontrol Filter */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-xs overflow-hidden">
-          {/* Filter Baris & Pencarian */}
-          <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row items-center justify-between gap-3">
-            {/* Filter Tabs */}
-            <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
-              <button
-                type="button"
-                onClick={() => setActiveFilter('semua')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-colors ${
-                  activeFilter === 'semua'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                Semua ({payments.length})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilter('menunggu')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-colors flex items-center gap-1.5 ${
-                  activeFilter === 'menunggu'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                <span>Menunggu Verifikasi</span>
-                <span className="bg-amber-950 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                  {waitingCount}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilter('cicilan')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-colors flex items-center gap-1.5 ${
-                  activeFilter === 'cicilan'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                <span>Cicilan / Sisa</span>
-                <span className="bg-purple-950 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                  {partialCount}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilter('lunas')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-colors flex items-center gap-1.5 ${
-                  activeFilter === 'lunas'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                <span>Sudah Lunas</span>
-                <span className="bg-emerald-950 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                  {verifiedCount}
-                </span>
-              </button>
-            </div>
-
-            {/* Input Pencarian */}
-            <div className="relative w-full md:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Cari siswa, bulan, atau jenis tagihan..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium focus:border-blue-900 focus:ring-1 focus:ring-blue-900 outline-hidden bg-white"
-              />
-            </div>
+        {/* Filter & Pencarian */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveFilter('semua')}
+              className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all ${
+                activeFilter === 'semua'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Semua ({payments.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('menunggu')}
+              className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
+                activeFilter === 'menunggu'
+                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                  : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Menunggu ({waitingCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('cicilan')}
+              className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
+                activeFilter === 'cicilan'
+                  ? 'bg-blue-700 text-white shadow-xs'
+                  : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              <Banknote className="w-3.5 h-3.5" />
+              <span>Cicilan ({partialCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('lunas')}
+              className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
+                activeFilter === 'lunas'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Lunas ({verifiedCount})</span>
+            </button>
           </div>
 
-          {/* Tabel Desktop */}
+          <div className="relative min-w-[240px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari nama siswa atau bulan..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900"
+            />
+          </div>
+        </div>
+
+        {/* Tabel Data Pembayaran */}
+        <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-100/70 text-[11px] sm:text-xs font-black text-slate-600 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Nama Siswa</th>
-                  <th className="py-3.5 px-4">Jenis Tagihan & Periode</th>
-                  <th className="py-3.5 px-4 text-right">Total Tagihan</th>
-                  <th className="py-3.5 px-4 text-right">Sudah Dibayar</th>
-                  <th className="py-3.5 px-4 text-right">Sisa Kekurangan</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-center min-w-[280px]">Aksi & Pencatatan</th>
+                <tr className="bg-slate-50 border-b-2 border-slate-200 text-slate-700 font-black">
+                  <th className="py-3 px-4">Nama Siswa</th>
+                  <th className="py-3 px-4">Kelas</th>
+                  <th className="py-3 px-4">Tagihan & Periode</th>
+                  <th className="py-3 px-4">Total & Terbayar</th>
+                  <th className="py-3 px-4">Sisa Tagihan</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 text-sm font-medium text-slate-800">
-                {filteredPayments.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-500 font-semibold">
-                      Tidak ada data tagihan yang sesuai dengan filter atau kata kunci.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPayments.map((item) => {
-                    const paid = item.paid_amount || (item.status === 'lunas' ? item.amount : 0);
-                    const remaining =
-                      item.remaining_amount !== undefined
-                        ? item.remaining_amount
-                        : item.status === 'lunas'
-                        ? 0
-                        : item.amount;
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                {filteredPayments.map((item) => {
+                  const remaining = item.remaining_amount !== undefined ? item.remaining_amount : item.amount;
+                  const paid = item.paid_amount || 0;
 
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        {/* Nama Siswa */}
-                        <td className="py-3.5 px-4">
-                          <div className="font-extrabold text-slate-900 text-sm">
-                            {item.student_name}
-                          </div>
-                          <div className="text-xs text-slate-500 font-semibold">
-                            {item.student_class}
-                          </div>
-                        </td>
-
-                        {/* Jenis Tagihan & Periode */}
-                        <td className="py-3.5 px-4">
-                          <span className="font-bold text-blue-950 block">
-                            {item.billing_title || 'SPP Reguler'}
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 font-extrabold text-slate-900">
+                        {item.student_name}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">{item.student_class}</td>
+                      <td className="py-3 px-4">
+                        <span className="font-extrabold text-blue-950 block">
+                          {item.billing_title || 'SPP Reguler'}
+                        </span>
+                        <span className="text-xs text-slate-500">{item.billing_month}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-black text-slate-900">{formatRupiah(item.amount)}</div>
+                        {paid > 0 && (
+                          <span className="text-xs text-emerald-700 font-bold">
+                            Masuk: {formatRupiah(paid)}
                           </span>
-                          <span className="text-xs text-slate-500 font-semibold">
-                            Periode: {item.billing_month}
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {remaining > 0 ? (
+                          <span className="font-black text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                            {formatRupiah(remaining)}
                           </span>
-                        </td>
-
-                        {/* Total Tagihan */}
-                        <td className="py-3.5 px-4 text-right font-black font-mono tabular-nums text-slate-900 text-sm">
-                          {formatRupiah(item.amount)}
-                        </td>
-
-                        {/* Sudah Dibayar */}
-                        <td className="py-3.5 px-4 text-right font-bold font-mono tabular-nums text-emerald-700 text-sm">
-                          {formatRupiah(paid)}
-                        </td>
-
-                        {/* Sisa Kekurangan */}
-                        <td className="py-3.5 px-4 text-right font-black font-mono tabular-nums text-sm">
-                          {remaining > 0 ? (
-                            <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                              {formatRupiah(remaining)}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 font-semibold">Rp 0 (Lunas)</span>
+                        ) : (
+                          <span className="text-xs text-emerald-700 font-extrabold">Rp 0 (Lunas)</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {item.status === 'lunas' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-extrabold text-xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Lunas
+                          </span>
+                        ) : item.status === 'cicilan' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-100 text-blue-950 font-extrabold text-xs">
+                            <Banknote className="w-3.5 h-3.5 text-blue-700" />
+                            Cicilan
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-950 font-extrabold text-xs">
+                            <Clock className="w-3.5 h-3.5 text-amber-700" />
+                            Menunggu
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {item.proof_image_url && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProofPayment(item)}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                              title="Lihat Bukti Transfer"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                           )}
-                        </td>
 
-                        {/* Status */}
-                        <td className="py-3.5 px-4 text-center">
-                          {item.status === 'lunas' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 font-extrabold text-xs">
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Lunas</span>
-                            </span>
-                          ) : item.status === 'cicilan' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 border border-purple-300 font-extrabold text-xs">
-                              <Percent className="w-3.5 h-3.5" />
-                              <span>Cicilan</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-xs">
-                              <Clock className="w-3.5 h-3.5" />
-                              <span>Menunggu</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Kolom Aksi */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                            {/* Tombol Lihat Bukti (jika ada) */}
-                            {item.proof_image_url && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedProofPayment(item)}
-                                className="px-2 py-1 rounded-lg bg-white hover:bg-blue-50 text-blue-900 font-bold text-xs border border-blue-300 flex items-center gap-1 shadow-2xs transition-colors"
-                                title="Buka bukti transfer"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-blue-800" />
-                                <span>Bukti</span>
-                              </button>
-                            )}
-
-                            {/* Tombol Bayar Cicilan / Input Nominal */}
-                            {item.status !== 'lunas' && (
+                          {item.status !== 'lunas' && (
+                            <>
                               <button
                                 type="button"
                                 onClick={() => setSelectedPartialPayment(item)}
-                                className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-extrabold text-xs flex items-center gap-1 shadow-xs transition-all active:scale-95"
-                                title="Catat pembayaran cicilan atau sebagian"
+                                className="px-2.5 py-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-900 font-extrabold text-xs"
+                                title="Catat Cicilan / Angsuran"
                               >
-                                <Banknote className="w-3.5 h-3.5" />
-                                <span>Bayar Cicilan</span>
+                                Cicil
                               </button>
-                            )}
-
-                            {/* Tombol Verifikasi / Tandai Lunas Penuh */}
-                            {item.status !== 'lunas' ? (
                               <button
                                 type="button"
                                 onClick={() => handleVerifyPayment(item.id)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black text-xs flex items-center gap-1 shadow-xs transition-all active:scale-95"
-                                title="Tandai langsung Lunas Penuh"
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-1 shadow-2xs"
+                                title="Verifikasi Lunas Penuh"
                               >
                                 <Check className="w-3.5 h-3.5" />
-                                <span>Lunas Penuh</span>
+                                <span>Lunas</span>
                               </button>
-                            ) : (
-                              <span className="text-xs font-bold text-emerald-700 py-1 px-1.5">
-                                ✓ Lunas
-                              </span>
-                            )}
+                            </>
+                          )}
 
-                            {/* Tombol Link Wali */}
-                            <button
-                              type="button"
-                              onClick={() => handleCopyParentLink(item)}
-                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-xs border border-slate-300 flex items-center gap-1 transition-all active:scale-95"
-                              title="Salin link portal wali murid"
-                            >
-                              <Link2 className="w-3.5 h-3.5 text-slate-600" />
-                              <span>Link</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                          <button
+                            type="button"
+                            onClick={() => handleCopyParentLink(item)}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-blue-900 font-bold"
+                            title="Salin Link & PIN Wali Murid"
+                          >
+                            <Link2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
-
-          {/* Footer Tabel */}
-          <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 font-medium gap-2">
-            <span>
-              Menampilkan {filteredPayments.length} dari {payments.length} tagihan & transaksi
-            </span>
-            <span>Rumah Belajar English · Sistem Keuangan & Tagihan Terpadu</span>
           </div>
         </div>
       </main>
 
-      {/* Modal 1: Lihat Bukti Transfer */}
+      {/* Modal Sesi Mengajar & Penilaian Per Kelas */}
+      {selectedTeachingClass && (
+        <ClassSessionModal
+          teachingClass={selectedTeachingClass}
+          onClose={() => setSelectedTeachingClass(null)}
+          onSuccess={(msg) => {
+            setSelectedTeachingClass(null);
+            showToast(msg);
+          }}
+        />
+      )}
+
+      {/* Modal Bukti Transfer */}
       {selectedProofPayment && (
         <ProofModal
           payment={selectedProofPayment}
           onClose={() => setSelectedProofPayment(null)}
-          onVerify={handleVerifyPayment}
+          onVerify={(id) => {
+            handleVerifyPayment(id);
+            setSelectedProofPayment(null);
+          }}
         />
       )}
 
-      {/* Modal 2: Catat Pembayaran Cicilan / Sebagian */}
+      {/* Modal Catat Cicilan */}
       {selectedPartialPayment && (
         <PartialPaymentModal
           payment={selectedPartialPayment}
           onClose={() => setSelectedPartialPayment(null)}
-          onSubmitPayment={handleSubmitPartialPayment}
+          onSubmitPayment={handleSavePartialPayment}
         />
       )}
 
-      {/* Modal 3: Pengaturan Tarif Rutin & Terbitkan Tagihan Baru */}
+      {/* Modal Pengaturan & Terbitkan Tagihan */}
       {showBillingModal && (
         <BillingSettingsModal
           rules={billingRules}
@@ -802,33 +796,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal, 
         />
       )}
 
-      {/* Modal 4: Upload Foto Kegiatan Galeri */}
+      {/* Modal Upload Galeri Kegiatan */}
       {showUploadModal && (
         <UploadGalleryModal
           students={adminStudentOptions}
           onClose={() => setShowUploadModal(false)}
-          onSuccess={handleUploadSuccess}
-        />
-      )}
-
-      {/* Modal 5: Isi Absensi Kelas */}
-      {showAttendanceModal && (
-        <AttendanceModal
-          onClose={() => setShowAttendanceModal(false)}
           onSuccess={() => {
-            setShowAttendanceModal(false);
-            showToast('Absensi berhasil disimpan');
+            setShowUploadModal(false);
+            showToast('Foto dokumentasi kegiatan kelas berhasil diunggah!');
           }}
         />
       )}
 
-      {/* Notifikasi Toast Mengambang */}
+      {/* Toast Notifikasi Sukses */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border-2 border-emerald-400 flex items-center gap-3 animate-bounce">
-          <div className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
-            <Check className="w-4 h-4" />
-          </div>
-          <span className="text-sm font-extrabold">{toastMessage}</span>
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl border-2 border-emerald-400 flex items-center gap-3 animate-fade-in">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="text-xs sm:text-sm font-extrabold">{toastMessage}</span>
         </div>
       )}
     </div>

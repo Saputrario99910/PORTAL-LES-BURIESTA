@@ -20,7 +20,7 @@ export const googleSheetsWebhookUrl = import.meta.env.VITE_GOOGLE_SHEETS_WEBHOOK
  * Sinkronisasi data ke Google Sheets Webhook
  */
 export async function syncToGoogleSheets(
-  actionType: 'pembayaran_lunas' | 'absensi_baru' | 'verify_pin',
+  actionType: 'pembayaran_lunas' | 'catat_pembayaran' | 'absensi_baru' | 'catat_penilaian' | 'verify_pin',
   payload: any
 ) {
   if (!googleSheetsWebhookUrl) {
@@ -31,7 +31,7 @@ export async function syncToGoogleSheets(
     const response = await fetch(googleSheetsWebhookUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'text/plain;charset=utf-8', // Hindari preflight CORS Google Apps Script
+        'Content-Type': 'text/plain;charset=utf-8',
       },
       body: JSON.stringify({
         action: actionType,

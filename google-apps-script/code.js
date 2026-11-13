@@ -7,9 +7,11 @@
 
 /**
  * FUNGSI SETUP UTAMA: setupDatabaseMaster()
- * Jalankan fungsi ini sekali langsung dari tombol 'Run' di editor Google Apps Script!
- * Fungsi ini akan otomatis membuat dan merapikan SEMUA tabel (Data Akun Siswa, Pembayaran SPP, Absensi Siswa)
- * dengan kolom lengkap terbaru (termasuk Cicilan & Sisa Kekurangan).
+ * Menyiapkan semua tab:
+ * 1. Data Akun Siswa
+ * 2. Pembayaran SPP (dengan cicilan)
+ * 3. Absensi Siswa (lengkap dengan nomor pertemuan 1, 2, 3, 4, 5, 6, dst)
+ * 4. Nilai & Evaluasi Siswa (tugas, kuis, unit test)
  */
 function setupDatabaseMaster() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -39,29 +41,29 @@ function setupDatabaseMaster() {
   studentSheet.setFrozenRows(1);
 
   studentSheet.appendRow([
-    "std_01",
+    "st_1",
     "kenzo-404",
     "Kenzo Alfarizi Pratama",
     "Kenzo",
-    "Primary English Explorer (Kelas 3 SD)",
+    "Kids A (Kelas 3-4 SD)",
     "123456",
     "6281234567890",
     "Selasa & Kamis · 15.30 - 17.00 WIB",
     "Miss Sarah Amalia, S.Pd."
   ]);
   studentSheet.appendRow([
-    "std_02",
+    "st_2",
     "nadira-202",
     "Nadira Alya Putri",
     "Alya",
-    "Beginner Kids Phonics (Kelas 1 SD)",
+    "Kids A (Kelas 3-4 SD)",
     "654321",
     "6281234567890",
-    "Senin & Rabu · 14.00 - 15.30 WIB",
+    "Selasa & Kamis · 15.30 - 17.00 WIB",
     "Miss Sarah Amalia, S.Pd."
   ]);
 
-  // 2. SETUP SHEET: Pembayaran SPP (Dengan Kolom Lengkap Cicilan & Sisa)
+  // 2. SETUP SHEET: Pembayaran SPP
   var paySheet = ss.getSheetByName("Pembayaran SPP");
   if (!paySheet) {
     paySheet = ss.insertSheet("Pembayaran SPP");
@@ -88,23 +90,7 @@ function setupDatabaseMaster() {
     .setHorizontalAlignment("center");
   paySheet.setFrozenRows(1);
 
-  // Contoh Data Awal Cicilan Kenzo
-  paySheet.appendRow([
-    new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
-    "Kenzo Alfarizi Pratama",
-    "Primary English Explorer (Kelas 3 SD)",
-    "SPP Reguler Bulanan",
-    "November 2024",
-    250000,
-    150000,
-    150000,
-    100000,
-    "CICILAN",
-    "Transfer Bank BCA",
-    "08 Nov 2024, 09.15 WIB"
-  ]);
-
-  // 3. SETUP SHEET: Absensi Siswa
+  // 3. SETUP SHEET: Absensi Siswa (Rekap per Pertemuan)
   var attSheet = ss.getSheetByName("Absensi Siswa");
   if (!attSheet) {
     attSheet = ss.insertSheet("Absensi Siswa");
@@ -112,35 +98,47 @@ function setupDatabaseMaster() {
   attSheet.clear();
   attSheet.appendRow([
     "Waktu Catat",
-    "Tanggal Kelas",
-    "Nama Siswa",
     "Kelas",
+    "Pertemuan Ke-",
+    "Tanggal Kelas",
+    "Topik Pembelajaran",
+    "Nama Siswa",
     "Status Kehadiran",
     "Catatan Guru"
   ]);
-  attSheet.getRange("A1:F1")
+  attSheet.getRange("A1:H1")
     .setFontWeight("bold")
     .setBackground("#dcfce7")
     .setFontColor("#14532d")
     .setHorizontalAlignment("center");
   attSheet.setFrozenRows(1);
 
-  attSheet.appendRow([
-    new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
-    "Selasa, 5 November 2024",
-    "Kenzo Alfarizi Pratama",
-    "Primary English Explorer (Kelas 3 SD)",
-    "Hadir",
-    "Sangat aktif bertanya kosakata baru"
+  // 4. SETUP SHEET: Nilai & Evaluasi Siswa
+  var gradeSheet = ss.getSheetByName("Nilai & Evaluasi Siswa");
+  if (!gradeSheet) {
+    gradeSheet = ss.insertSheet("Nilai & Evaluasi Siswa");
+  }
+  gradeSheet.clear();
+  gradeSheet.appendRow([
+    "Waktu Catat",
+    "Kelas",
+    "Pertemuan Ke-",
+    "Tanggal",
+    "Nama Siswa",
+    "Jenis Penilaian",
+    "Judul / Topik Materi",
+    "Nilai Angka",
+    "Skor Maksimal",
+    "Catatan / Evaluasi Guru"
   ]);
+  gradeSheet.getRange("A1:J1")
+    .setFontWeight("bold")
+    .setBackground("#fef08a")
+    .setFontColor("#713f12")
+    .setHorizontalAlignment("center");
+  gradeSheet.setFrozenRows(1);
 
-  // Format Auto Resize Kolom agar tampilan rapi & proporsional
-  for (var col = 1; col <= 9; col++) studentSheet.autoResizeColumn(col);
-  for (var col = 1; col <= 12; col++) paySheet.autoResizeColumn(col);
-  for (var col = 1; col <= 6; col++) attSheet.autoResizeColumn(col);
-
-  Logger.log("✅ setupDatabaseMaster BERHASIL: Semua Sheet dan Header Kolom telah diperbarui!");
-  return "Setup Database Master Berhasil Dijalankan!";
+  return "Setup Database Master Lengkap Berhasil!";
 }
 
 function doPost(e) {
@@ -242,7 +240,7 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 2. SINKRONISASI ABSENSI KELAS
+    // 2. SINKRONISASI ABSENSI KELAS (Support Batch Multi-Siswa & Nomor Pertemuan)
     if (action === "absensi_baru") {
       var attSheet = ss.getSheetByName("Absensi Siswa");
       if (!attSheet) {
@@ -250,18 +248,69 @@ function doPost(e) {
         attSheet = ss.getSheetByName("Absensi Siswa");
       }
 
-      attSheet.appendRow([
-        timestamp,
-        data.date || timestamp,
-        data.student_name || "-",
-        data.class_name || "-",
-        data.status || "hadir",
-        data.teacher_note || "-"
-      ]);
+      // Jika data dikirim berupa array records
+      if (data.records && Array.isArray(data.records)) {
+        for (var r = 0; r < data.records.length; r++) {
+          var rec = data.records[r];
+          attSheet.appendRow([
+            timestamp,
+            rec.class_name || data.class_name || "-",
+            rec.meeting_number || data.meeting_number || 1,
+            rec.date || timestamp,
+            rec.topic || "-",
+            rec.student_name || "-",
+            rec.status || "Hadir",
+            rec.teacher_note || "-"
+          ]);
+        }
+      } else {
+        attSheet.appendRow([
+          timestamp,
+          data.class_name || "-",
+          data.meeting_number || 1,
+          data.date || timestamp,
+          data.topic || "-",
+          data.student_name || "-",
+          data.status || "Hadir",
+          data.teacher_note || "-"
+        ]);
+      }
 
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         message: "Data absensi berhasil masuk ke Google Sheets"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3. SINKRONISASI PENILAIAN SISWA (Tugas, Kuis, Unit Test)
+    if (action === "catat_penilaian") {
+      var gradeSheet = ss.getSheetByName("Nilai & Evaluasi Siswa");
+      if (!gradeSheet) {
+        setupDatabaseMaster();
+        gradeSheet = ss.getSheetByName("Nilai & Evaluasi Siswa");
+      }
+
+      if (data.records && Array.isArray(data.records)) {
+        for (var g = 0; g < data.records.length; g++) {
+          var gRec = data.records[g];
+          gradeSheet.appendRow([
+            timestamp,
+            gRec.class_name || data.class_name || "-",
+            gRec.meeting_number || data.meeting_number || 1,
+            gRec.date || timestamp,
+            gRec.student_name || "-",
+            gRec.assessment_type || "Tugas",
+            gRec.assessment_title || "-",
+            gRec.score || 0,
+            gRec.max_score || 100,
+            gRec.teacher_feedback || "-"
+          ]);
+        }
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "Data nilai siswa berhasil masuk ke Google Sheets"
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
