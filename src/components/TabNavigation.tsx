@@ -49,6 +49,26 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
     },
   ];
 
+  // Helper fungsi untuk menggulir halaman tepat ke awal konten tab baru
+  const handleTabClick = (tabId: ActiveTabType) => {
+    onChangeTab(tabId);
+
+    // Beri sedikit jeda rendering DOM agar komponen konten siap, lalu scroll halus tepat ke area konten
+    setTimeout(() => {
+      const contentSection = document.getElementById('tab-content-area');
+      if (contentSection) {
+        // Ambil posisi absolut terhadap viewport dikurangi tinggi header sticky (sekitar 70px)
+        const elementPosition = contentSection.getBoundingClientRect().top + window.scrollY;
+        const offsetPosition = elementPosition - 75;
+
+        window.scrollTo({
+          top: offsetPosition > 0 ? offsetPosition : 0,
+          behavior: 'smooth',
+        });
+      }
+    }, 50);
+  };
+
   return (
     <>
       {/* 1. Header Pil Segmented Control di Desktop/Tablet (Sangat Rapi & Bersih) */}
@@ -61,7 +81,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
             <button
               key={tab.id}
               type="button"
-              onClick={() => onChangeTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               className={`flex-1 py-2.5 px-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${
                 isActive
                   ? 'bg-blue-900 text-white shadow-sm ring-1 ring-amber-400'
@@ -94,10 +114,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => {
-                  onChangeTab(tab.id);
-                  window.scrollTo({ top: 120, behavior: 'smooth' });
-                }}
+                onClick={() => handleTabClick(tab.id)}
                 className={`flex-1 min-w-0 py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all ${
                   isActive
                     ? 'text-blue-900 font-extrabold bg-blue-50/90 scale-105'
