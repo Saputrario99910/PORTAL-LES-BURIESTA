@@ -33,20 +33,26 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   const [isError, setIsError] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Ambil daftar unik nama kelas
-  const classOptions = Array.from(new Set(allStudents.map((s) => s.class_level)));
+  // Ambil daftar unik rombel / nama kelas (misal: Kids A, Kids B, Teens 1, Teens 2)
+  const classOptions = Array.from(
+    new Set(allStudents.map((s) => s.class_name || s.class_level))
+  );
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>(
-    currentStudent.class_level || classOptions[0] || 'all'
+    currentStudent.class_name || currentStudent.class_level || classOptions[0] || 'all'
   );
 
   // Filter siswa berdasarkan kelas yang dipilih
   const filteredStudents = allStudents.filter((s) =>
-    selectedClassFilter === 'all' ? true : s.class_level === selectedClassFilter
+    selectedClassFilter === 'all'
+      ? true
+      : (s.class_name === selectedClassFilter || s.class_level === selectedClassFilter)
   );
 
   const handleClassChange = (newClass: string) => {
     setSelectedClassFilter(newClass);
-    const firstStudentInClass = allStudents.find((s) => s.class_level === newClass);
+    const firstStudentInClass = allStudents.find(
+      (s) => s.class_name === newClass || s.class_level === newClass
+    );
     if (firstStudentInClass) {
       onSelectStudent(firstStudentInClass);
       setPin('');
@@ -164,11 +170,16 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
                 onChange={(e) => handleClassChange(e.target.value)}
                 className="w-full bg-slate-900 border-2 border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-white focus:border-amber-400 focus:outline-none appearance-none cursor-pointer pr-8"
               >
-                {classOptions.map((cls) => (
-                  <option key={cls} value={cls}>
-                    {cls}
-                  </option>
-                ))}
+                {classOptions.map((cls) => {
+                  const studentCount = allStudents.filter(
+                    (s) => s.class_name === cls || s.class_level === cls
+                  ).length;
+                  return (
+                    <option key={cls} value={cls}>
+                      🏷️ {cls} ({studentCount} Siswa)
+                    </option>
+                  );
+                })}
               </select>
               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>

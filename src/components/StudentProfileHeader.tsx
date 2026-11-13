@@ -131,6 +131,11 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
         {/* Info Detail Siswa */}
         <div className="flex-1 text-center sm:text-left">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
+            {student.class_name && (
+              <span className="text-xs sm:text-sm font-black text-white bg-emerald-600 px-3 py-1 rounded-full shadow-2xs">
+                🏷️ Rombel: {student.class_name}
+              </span>
+            )}
             <span className="text-xs sm:text-sm font-bold text-amber-900 bg-amber-100 px-3 py-1 rounded-full border border-amber-300">
               {student.class_level}
             </span>

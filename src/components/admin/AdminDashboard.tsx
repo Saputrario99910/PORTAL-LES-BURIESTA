@@ -48,6 +48,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }) => {
   const [payments, setPayments] = useState<AdminPaymentVerification[]>(initialAdminPayments);
   const [activeFilter, setActiveFilter] = useState<'menunggu' | 'lunas' | 'cicilan' | 'semua'>('semua');
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // Modals
@@ -271,15 +272,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
     showToast(`Link akses & PIN untuk wali ${item.student_name} berhasil disalin!`);
   };
 
-  // Filter Data Pembayaran
+  // Filter Data Pembayaran (Mendukung Filter per Rombel Kelas & Filter Status)
   const filteredPayments = payments.filter((item) => {
     const matchesFilter =
       activeFilter === 'semua' ? true : item.status === activeFilter;
+    const matchesClass =
+      selectedClassFilter === 'all'
+        ? true
+        : item.class_name === selectedClassFilter || item.student_class.includes(selectedClassFilter);
     const matchesSearch =
       item.student_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.student_class.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.class_name && item.class_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       item.billing_month.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
+    return matchesFilter && matchesClass && matchesSearch;
   });
 
   // Kalkulasi Keuangan
@@ -567,62 +573,95 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
         </div>
 
         {/* Filter & Pencarian */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setActiveFilter('semua')}
-              className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all ${
-                activeFilter === 'semua'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Semua ({payments.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter('menunggu')}
-              className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
-                activeFilter === 'menunggu'
-                  ? 'bg-amber-500 text-slate-950 shadow-xs'
-                  : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>Menunggu ({waitingCount})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter('cicilan')}
-              className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
-                activeFilter === 'cicilan'
-                  ? 'bg-blue-700 text-white shadow-xs'
-                  : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
-              }`}
-            >
-              <Banknote className="w-3.5 h-3.5" />
-              <span>Cicilan ({partialCount})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter('lunas')}
-              className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
-                activeFilter === 'lunas'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Lunas ({verifiedCount})</span>
-            </button>
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Filter Rombel Kelas */}
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-black text-slate-500 uppercase px-2">Kelas:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedClassFilter('all')}
+                className={`px-2.5 py-1 rounded-lg font-black text-xs transition-all ${
+                  selectedClassFilter === 'all'
+                    ? 'bg-blue-900 text-white shadow-2xs'
+                    : 'text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Semua
+              </button>
+              {teachingClassesData.map((cls) => (
+                <button
+                  key={cls.id}
+                  type="button"
+                  onClick={() => setSelectedClassFilter(cls.name)}
+                  className={`px-2.5 py-1 rounded-lg font-black text-xs transition-all ${
+                    selectedClassFilter === cls.name
+                      ? 'bg-blue-900 text-white shadow-2xs'
+                      : 'text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {cls.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Filter Status Tagihan */}
+            <div className="flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveFilter('semua')}
+                className={`px-3 py-1.5 rounded-xl font-extrabold text-xs transition-all ${
+                  activeFilter === 'semua'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Semua Status ({payments.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilter('menunggu')}
+                className={`px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
+                  activeFilter === 'menunggu'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Menunggu ({waitingCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilter('cicilan')}
+                className={`px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
+                  activeFilter === 'cicilan'
+                    ? 'bg-blue-700 text-white shadow-xs'
+                    : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
+                }`}
+              >
+                <Banknote className="w-3.5 h-3.5" />
+                <span>Cicilan ({partialCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilter('lunas')}
+                className={`px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all ${
+                  activeFilter === 'lunas'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Lunas ({verifiedCount})</span>
+              </button>
+            </div>
           </div>
 
-          <div className="relative min-w-[240px]">
+          <div className="relative min-w-[220px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari nama siswa atau bulan..."
+              placeholder="Cari siswa atau bulan..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900"
@@ -655,7 +694,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
                       <td className="py-3 px-4 font-extrabold text-slate-900">
                         {item.student_name}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">{item.student_class}</td>
+                      <td className="py-3 px-4">
+                        {item.class_name && (
+                          <span className="inline-block text-[11px] font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md mb-0.5">
+                            {item.class_name}
+                          </span>
+                        )}
+                        <div className="text-xs text-slate-600 font-semibold">{item.student_class}</div>
+                      </td>
                       <td className="py-3 px-4">
                         <span className="font-extrabold text-blue-950 block">
                           {item.billing_title || 'SPP Reguler'}

@@ -18,7 +18,9 @@ export interface Student {
   token: string;
   name: string;
   nickname: string;
-  class_level: string;
+  class_id?: string; // id kelas mengajar (misal: cls_kids_a, cls_kids_b)
+  class_name?: string; // nama rombel (misal: Kids A, Kids B, Teens 1)
+  class_level: string; // nama level / deskripsi tingkatan
   schedule: string;
   teacher_name: string;
   teacher_whatsapp: string;
