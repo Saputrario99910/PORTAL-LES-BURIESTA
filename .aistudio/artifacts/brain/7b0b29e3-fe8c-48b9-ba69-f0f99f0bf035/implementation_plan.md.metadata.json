@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana penambahan rute Dashboard Admin (/admin) untuk pemilik Rumah Belajar English, mencakup tabel verifikasi pembayaran 10 siswa dengan modal bukti transfer dan tombol verifikasi instan, serta fitur upload foto kegiatan kelas dengan preview dan notifikasi toast.",
+  "updatedAt":  "2026-11-09T12:42:07.357064982Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
