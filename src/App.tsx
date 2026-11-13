@@ -92,8 +92,13 @@ export default function App() {
         if (found) return found;
       }
       const savedAvatar = localStorage.getItem('rbe_student_avatar_std_01');
-      if (savedAvatar) {
-        return { ...mockStudents[0], avatar_url: savedAvatar };
+      const savedPin = localStorage.getItem('rbe_student_pin_std_01');
+      if (savedAvatar || savedPin) {
+        return {
+          ...mockStudents[0],
+          avatar_url: savedAvatar || mockStudents[0].avatar_url,
+          pin: savedPin || mockStudents[0].pin,
+        };
       }
     }
     return mockStudents[0];
@@ -130,6 +135,17 @@ export default function App() {
       const updated = { ...prev, avatar_url: newAvatarUrl };
       if (typeof window !== 'undefined') {
         localStorage.setItem(`rbe_student_avatar_${prev.id}`, newAvatarUrl);
+      }
+      return updated;
+    });
+  };
+
+  // Fungsi Mengubah PIN Siswa secara Mandiri
+  const handleUpdateStudentPin = (newPin: string) => {
+    setCurrentStudent((prev) => {
+      const updated = { ...prev, pin: newPin };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`rbe_student_pin_${prev.id}`, newPin);
       }
       return updated;
     });
@@ -206,11 +222,13 @@ export default function App() {
     return <TutorDashboard onNavigate={navigateTo} />;
   }
 
-  // JIKA BELUM LOGIN: Tampilkan Layar Kunci 6-Digit PIN (Hanya Muncul 1 Kali di HP Wali Murid)
+  // JIKA BELUM LOGIN: Tampilkan Layar Kunci 6-Digit PIN (Dengan Pilihan Kelas & Nama Siswa)
   if (!isAuthenticated) {
     return (
       <PinLockScreen
-        student={currentStudent}
+        currentStudent={currentStudent}
+        allStudents={mockStudents}
+        onSelectStudent={(selected) => setCurrentStudent(selected)}
         onSuccess={handleLoginSuccess}
       />
     );
@@ -289,11 +307,12 @@ export default function App() {
           </div>
         </div>
 
-        {/* 1. Profil Anak (Dengan Fitur Upload Ganti Foto) */}
+        {/* 1. Profil Anak (Dengan Fitur Upload Ganti Foto & Ganti PIN Mandiri) */}
         <section aria-label="Profil Siswa">
           <StudentProfileHeader
             student={currentStudent}
             onUpdateAvatar={handleUpdateStudentAvatar}
+            onUpdatePin={handleUpdateStudentPin}
           />
         </section>
 
