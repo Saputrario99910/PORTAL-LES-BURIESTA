@@ -22,60 +22,64 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
   onChangeTab,
   unpaidCount,
 }) => {
+  // Menu tab lengkap di badan halaman
   const tabs = [
     {
       id: 'attendance' as ActiveTabType,
       number: '1',
       title: 'Absensi & Catatan Guru',
-      subtitle: 'Riwayat 8 pekan, kehadiran & evaluasi belajar',
+      subtitle: 'Riwayat kehadiran mingguan & evaluasi belajar ananda',
       icon: CalendarCheck,
       bottomLabel: 'Absensi',
     },
     {
       id: 'exam_results' as ActiveTabType,
       number: '2',
-      title: 'Hasil Ujian & Grafik Nilai',
-      subtitle: 'Grafik naik-turun nilai per unit (Buku 1 selesai)',
+      title: 'Hasil Ujian & Nilai',
+      subtitle: 'Grafik naik-turun nilai tes setiap unit selesai',
       icon: Award,
-      badge: 'Baru ✨',
-      bottomLabel: 'Nilai Ujian',
+      badge: 'Grafik ✨',
+      bottomLabel: 'Nilai Tes',
     },
     {
       id: 'learning_plan' as ActiveTabType,
       number: '3',
-      title: 'Rencana Belajar (Silabus Buku)',
-      subtitle: 'Peta materi lengkap 12 pertemuan per buku',
+      title: 'Materi Unit Saat Ini',
+      subtitle: 'Target belajar, grammar & kosakata yang sedang dipelajari',
       icon: BookOpen,
-      bottomLabel: 'Silabus',
+      bottomLabel: 'Materi Unit',
     },
     {
       id: 'gallery' as ActiveTabType,
       number: '4',
       title: 'Galeri Karya & Foto Kelas',
-      subtitle: 'Cooking class 10 foto, karya tulis & generator AI',
+      subtitle: 'Dokumentasi kegiatan seru & lembar kerja tulisan tangan',
       icon: Image,
       bottomLabel: 'Galeri',
     },
     {
       id: 'tuition' as ActiveTabType,
       number: '5',
-      title: 'Iuran Les & Konfirmasi Bayar',
-      subtitle: 'Tombol sudah bayar, nomor rekening & kirim bukti',
+      title: 'Iuran Les / SPP',
+      subtitle: 'Status pembayaran, tombol sudah bayar & rekening resmi',
       icon: WalletCards,
-      badge: unpaidCount > 0 ? `${unpaidCount} Perlu Bayar` : undefined,
-      bottomLabel: 'Iuran SPP',
+      badge: unpaidCount > 0 ? `${unpaidCount} Tagihan` : undefined,
+      bottomLabel: 'SPP',
     },
   ];
 
+  // 4 Tombol Ringkas di Bottom Nav Mobile (Sangat pas di layar HP agar tidak sesak dan mudah dipencet jempol)
+  // Menampilkan: Absensi, Nilai Tes, Materi Unit (1 unit saat ini), dan SPP
+  const mobileBottomTabs = tabs.filter((t) => t.id !== 'gallery');
+
   return (
     <div className="space-y-4">
-      {/* 1. Menu Vertikal Menumpuk ke Bawah (Tombol Sangat Besar & Mudah Dipencet untuk Orang Tua) */}
+      {/* 1. Menu Vertikal Menumpuk ke Bawah (Tombol Besar Nyaman untuk Wali Murid) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-sm sm:text-base font-extrabold text-slate-800">
-            Pilih Informasi yang Ingin Dilihat:
+            Pilih Informasi Belajar Ananda:
           </label>
-          <span className="text-xs text-slate-500 font-semibold">5 Menu Tersedia</span>
         </div>
 
         <div className="grid grid-cols-1 gap-2.5">
@@ -89,7 +93,6 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
                 type="button"
                 onClick={() => {
                   onChangeTab(tab.id);
-                  // Halus scroll ke area konten jika di layar kecil
                   const el = document.getElementById('tab-content-area');
                   if (el && window.innerWidth < 640) {
                     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -103,7 +106,6 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
                 aria-pressed={isActive}
               >
                 <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                  {/* Lingkaran Ikon & Nomor */}
                   <div
                     className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 font-black text-base shadow-xs ${
                       isActive
@@ -114,7 +116,6 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
                     <Icon className="w-6 h-6" />
                   </div>
 
-                  {/* Judul & Keterangan */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3
@@ -146,7 +147,6 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
                   </div>
                 </div>
 
-                {/* Indikator Panah Kanan / Checklist */}
                 <div className="shrink-0 flex items-center pl-2">
                   {isActive ? (
                     <div className="w-8 h-8 rounded-full bg-amber-400 text-blue-950 flex items-center justify-center">
@@ -162,12 +162,12 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
         </div>
       </div>
 
-      {/* 2. Fixed Bottom Navigation Bar (Sangat Membantu Navigasi Mobile HP) */}
+      {/* 2. Fixed Bottom Navigation Bar Khusus Tampilan Layar HP (4 Tombol Ringkas & Lega) */}
       <nav
         aria-label="Navigasi Bawah Layar"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t-2 border-slate-200 shadow-xl px-2 py-2"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t-2 border-slate-200 shadow-xl px-2 py-1.5"
       >
-        <div className="max-w-2xl mx-auto flex items-center justify-around gap-1">
+        <div className="max-w-md mx-auto flex items-center justify-around gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -185,7 +185,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
                 }}
                 className={`flex-1 min-w-0 py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all ${
                   isActive
-                    ? 'text-blue-900 font-extrabold bg-blue-50/80 scale-105'
+                    ? 'text-blue-900 font-extrabold bg-blue-50/90 scale-105'
                     : 'text-slate-500 hover:text-slate-900 font-bold'
                 }`}
               >
@@ -199,7 +199,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
                     <span className="absolute -top-1 -right-2 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white" />
                   )}
                 </div>
-                <span className="text-[10px] sm:text-[11px] truncate mt-0.5 tracking-tight">
+                <span className="text-[10px] truncate mt-0.5 font-bold">
                   {tab.bottomLabel}
                 </span>
               </button>

@@ -258,7 +258,7 @@ export default function App() {
             <ExamResultsTab results={studentExamResults} studentName={currentStudent.nickname} />
           )}
           {activeTab === 'learning_plan' && (
-            <LearningPlanTab curriculums={mockBookCurriculum} legacyPlans={mockLearningPlans} />
+            <LearningPlanTab curriculums={mockBookCurriculum} />
           )}
           {activeTab === 'gallery' && <GalleryTab items={studentGallery} />}
           {activeTab === 'tuition' && (
