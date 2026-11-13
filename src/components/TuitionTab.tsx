@@ -64,22 +64,29 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
     switch (status) {
       case 'lunas':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-100 border-2 border-emerald-500 text-emerald-950 font-extrabold text-sm sm:text-base">
-            <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-100 border-2 border-emerald-500 text-emerald-950 font-extrabold text-xs sm:text-sm">
+            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-700" />
             <span>LUNAS</span>
+          </span>
+        );
+      case 'cicilan':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-100 border-2 border-purple-500 text-purple-950 font-extrabold text-xs sm:text-sm">
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-purple-700" />
+            <span>CICILAN / SEBAGIAN</span>
           </span>
         );
       case 'menunggu':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-100 border-2 border-amber-500 text-amber-950 font-extrabold text-sm sm:text-base">
-            <Clock className="w-5 h-5 text-amber-700" />
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-100 border-2 border-amber-500 text-amber-950 font-extrabold text-xs sm:text-sm">
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-700" />
             <span>MENUNGGU VERIFIKASI</span>
           </span>
         );
       case 'belum':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-100 border-2 border-rose-500 text-rose-950 font-extrabold text-sm sm:text-base">
-            <AlertCircle className="w-5 h-5 text-rose-700" />
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-100 border-2 border-rose-500 text-rose-950 font-extrabold text-xs sm:text-sm">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-rose-700" />
             <span>BELUM DIBAYAR</span>
           </span>
         );
@@ -178,87 +185,126 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
 
       {/* Kartu Status 3 Bulan */}
       <div className="space-y-3.5">
-        {records.map((rec) => (
-          <div
-            key={rec.id}
-            className={`bg-white rounded-2xl border-2 p-4 sm:p-5 shadow-xs transition-all ${
-              rec.status === 'belum'
-                ? 'border-rose-300 ring-2 ring-rose-100'
-                : rec.status === 'menunggu'
-                ? 'border-amber-300'
-                : 'border-slate-200'
-            }`}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-              <div>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                  Periode Tagihan
-                </span>
-                <h4 className="text-xl sm:text-2xl font-black text-slate-900">{rec.period}</h4>
+        {records.map((rec) => {
+          const isCicilan = rec.status === 'cicilan';
+          const paid = rec.paid_amount || (rec.status === 'lunas' ? rec.amount : 0);
+          const remaining =
+            rec.remaining_amount !== undefined
+              ? rec.remaining_amount
+              : rec.status === 'lunas'
+              ? 0
+              : rec.amount - paid;
+
+          return (
+            <div
+              key={rec.id}
+              className={`bg-white rounded-2xl border-2 p-4 sm:p-5 shadow-xs transition-all ${
+                rec.status === 'belum'
+                  ? 'border-rose-300 ring-2 ring-rose-100'
+                  : rec.status === 'cicilan'
+                  ? 'border-purple-300 ring-2 ring-purple-100'
+                  : rec.status === 'menunggu'
+                  ? 'border-amber-300'
+                  : 'border-slate-200'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                    {rec.title || 'SPP Reguler'}
+                  </span>
+                  <h4 className="text-xl sm:text-2xl font-black text-slate-900">{rec.period}</h4>
+                </div>
+                <div className="self-start sm:self-auto">{renderBadge(rec.status)}</div>
               </div>
-              <div className="self-start sm:self-auto">{renderBadge(rec.status)}</div>
-            </div>
 
-            <div className="pt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <span className="text-xs sm:text-sm font-semibold text-slate-600 block">
-                  Nominal SPP:
-                </span>
-                <span className="text-2xl sm:text-3xl font-black text-blue-950 font-mono">
-                  {formatRupiah(rec.amount)}
-                </span>
-                <span className="text-xs text-slate-500 block mt-0.5">
-                  Batas tanggal 10 setiap bulannya
-                </span>
-              </div>
+              {/* Rincian Pembayaran & Cicilan jika ada */}
+              {isCicilan && (
+                <div className="mt-3 p-3.5 bg-purple-50 border border-purple-200 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
+                  <div>
+                    <span className="text-purple-900 font-semibold block">
+                      Sudah Terbayar:{' '}
+                      <strong className="text-purple-950 font-mono font-bold">
+                        {formatRupiah(paid)}
+                      </strong>{' '}
+                      dari total {formatRupiah(rec.amount)}
+                    </span>
+                    {rec.notes && (
+                      <span className="text-[11px] text-purple-700 italic block mt-0.5">
+                        Catatan: {rec.notes}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-purple-800 font-bold block">Sisa Kekurangan:</span>
+                    <span className="text-base sm:text-lg font-black text-rose-700 font-mono">
+                      {formatRupiah(remaining)}
+                    </span>
+                  </div>
+                </div>
+              )}
 
-              {/* Tombol Aksi Pembayaran */}
-              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                {rec.status === 'belum' && (
-                  <>
-                    {/* 5. Tombol Cepat: Sudah Membayar (Cash / Transfer Langsung) */}
-                    <button
-                      type="button"
-                      onClick={() => openDirectPayModal(rec)}
-                      className="flex-1 sm:flex-none min-h-[48px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
-                      title="Klik jika sudah bayar cash di tempat atau transfer langsung tanpa upload bukti"
-                    >
-                      <Banknote className="w-5 h-5 text-amber-300" />
-                      <span>Sudah Membayar</span>
-                    </button>
+              <div className="pt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-600 block">
+                    {isCicilan ? 'Sisa yang Harus Dibayar:' : 'Nominal Tagihan:'}
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black text-blue-950 font-mono">
+                    {formatRupiah(isCicilan ? remaining : rec.amount)}
+                  </span>
+                  <span className="text-xs text-slate-500 block mt-0.5">
+                    Jatuh tempo: {rec.due_date || 'Batas tgl 10 setiap bulannya'}
+                  </span>
+                </div>
 
+                {/* Tombol Aksi Pembayaran */}
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                  {(rec.status === 'belum' || rec.status === 'cicilan') && (
+                    <>
+                      {/* Tombol Cepat: Sudah Membayar (Cash / Transfer Langsung) */}
+                      <button
+                        type="button"
+                        onClick={() => openDirectPayModal(rec)}
+                        className="flex-1 sm:flex-none min-h-[48px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                        title="Klik jika sudah bayar cash di tempat atau transfer langsung tanpa upload bukti"
+                      >
+                        <Banknote className="w-5 h-5 text-amber-300" />
+                        <span>{isCicilan ? 'Bayar Sisa Cicilan' : 'Sudah Membayar'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => openPaymentModal(rec)}
+                        className="flex-1 sm:flex-none min-h-[48px] px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-extrabold text-sm sm:text-base flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95"
+                      >
+                        <Upload className="w-4 h-4 text-slate-950" />
+                        <span>Upload Bukti</span>
+                      </button>
+                    </>
+                  )}
+
+                  {rec.status === 'menunggu' && (
                     <button
                       type="button"
                       onClick={() => openPaymentModal(rec)}
-                      className="flex-1 sm:flex-none min-h-[48px] px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-extrabold text-sm sm:text-base flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95"
+                      className="w-full sm:w-auto min-h-[48px] px-5 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 border-2 border-amber-400 transition-colors"
                     >
-                      <Upload className="w-4 h-4 text-slate-950" />
-                      <span>Upload Bukti</span>
+                      <Clock className="w-5 h-5 text-amber-700" />
+                      <span>Lihat / Ganti Bukti Transfer</span>
                     </button>
-                  </>
-                )}
+                  )}
 
-                {rec.status === 'menunggu' && (
-                  <button
-                    type="button"
-                    onClick={() => openPaymentModal(rec)}
-                    className="w-full sm:w-auto min-h-[48px] px-5 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 border-2 border-amber-400 transition-colors"
-                  >
-                    <Clock className="w-5 h-5 text-amber-700" />
-                    <span>Lihat / Ganti Bukti Transfer</span>
-                  </button>
-                )}
-
-                {rec.status === 'lunas' && (
-                  <div className="flex items-center gap-2 text-sm text-emerald-800 font-bold bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>Lunas pada {rec.payment_date}</span>
-                  </div>
-                )}
+                  {rec.status === 'lunas' && (
+                    <div className="flex items-center gap-2 text-sm text-emerald-800 font-bold bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span>Lunas pada {rec.payment_date}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Bagian Rekening Pembayaran Resmi */}

@@ -4,14 +4,24 @@ export interface AdminPaymentVerification {
   student_name: string;
   nickname: string;
   student_class: string;
+  billing_title?: string;
   billing_month: string;
-  amount: number;
+  billing_type?: 'bulanan' | 'per_pertemuan' | 'lainnya';
+  amount: number; // Total tagihan asli
+  paid_amount?: number; // Jumlah yang sudah dibayar
+  remaining_amount?: number; // Sisa kekurangan tagihan
   upload_date: string;
   proof_image_url: string;
   sender_bank: string;
   sender_account_name: string;
-  status: 'menunggu' | 'lunas';
+  status: 'menunggu' | 'lunas' | 'cicilan';
   verified_at?: string;
+  payment_history?: {
+    date: string;
+    amount: number;
+    method?: string;
+    note?: string;
+  }[];
 }
 
 export interface AdminStudentOption {
@@ -20,7 +30,7 @@ export interface AdminStudentOption {
   class_level: string;
 }
 
-// 10 Siswa Indonesia dengan Status Pembayaran Menunggu Verifikasi
+// 10 Siswa Indonesia dengan Status Pembayaran Menunggu Verifikasi & Contoh Cicilan
 export const initialAdminPayments: AdminPaymentVerification[] = [
   {
     id: 'pay_01',
@@ -28,13 +38,25 @@ export const initialAdminPayments: AdminPaymentVerification[] = [
     student_name: 'Kenzo Alfarizi Pratama',
     nickname: 'Kenzo',
     student_class: 'Primary English Explorer (Kelas 3 SD)',
+    billing_title: 'SPP Reguler Bulanan',
     billing_month: 'November 2024',
+    billing_type: 'bulanan',
     amount: 250000,
+    paid_amount: 150000,
+    remaining_amount: 100000,
     upload_date: '08 Nov 2024, 09.15 WIB',
     proof_image_url: 'https://picsum.photos/seed/struk1/400/600',
     sender_bank: 'BCA (Bank Central Asia)',
     sender_account_name: 'BAMBANG PRATAMA',
-    status: 'menunggu',
+    status: 'cicilan',
+    payment_history: [
+      {
+        date: '08 Nov 2024, 09.15 WIB',
+        amount: 150000,
+        method: 'Transfer BCA',
+        note: 'Cicilan ke-1 via transfer',
+      },
+    ],
   },
   {
     id: 'pay_02',
@@ -42,8 +64,12 @@ export const initialAdminPayments: AdminPaymentVerification[] = [
     student_name: 'Nadira Alya Putri',
     nickname: 'Alya',
     student_class: 'Beginner Kids Phonics (Kelas 1 SD)',
+    billing_title: 'SPP Reguler Bulanan',
     billing_month: 'November 2024',
+    billing_type: 'bulanan',
     amount: 250000,
+    paid_amount: 0,
+    remaining_amount: 250000,
     upload_date: '08 Nov 2024, 10.30 WIB',
     proof_image_url: 'https://picsum.photos/seed/struk2/400/600',
     sender_bank: 'Bank Mandiri',
@@ -56,8 +82,12 @@ export const initialAdminPayments: AdminPaymentVerification[] = [
     student_name: 'Dimas Prasetyo Nugroho',
     nickname: 'Dimas',
     student_class: 'Primary English Explorer (Kelas 4 SD)',
+    billing_title: 'SPP Reguler Bulanan',
     billing_month: 'November 2024',
+    billing_type: 'bulanan',
     amount: 250000,
+    paid_amount: 0,
+    remaining_amount: 250000,
     upload_date: '08 Nov 2024, 11.45 WIB',
     proof_image_url: 'https://picsum.photos/seed/struk3/400/600',
     sender_bank: 'BRI (Bank Rakyat Indonesia)',
@@ -164,7 +194,36 @@ export const initialAdminPayments: AdminPaymentVerification[] = [
   },
 ];
 
-// Opsi Siswa untuk Form Dropdown Galeri
+// Konfigurasi Default Tagihan Rutin Lembaga
+export interface RecurringBillingRule {
+  id: string;
+  title: string;
+  billing_type: 'bulanan' | 'per_pertemuan' | 'lainnya';
+  default_amount: number;
+  due_day_of_month: number;
+  active: boolean;
+}
+
+export const initialRecurringBillingRules: RecurringBillingRule[] = [
+  {
+    id: 'rule_spp_bulanan',
+    title: 'SPP Reguler Bulanan',
+    billing_type: 'bulanan',
+    default_amount: 250000,
+    due_day_of_month: 10,
+    active: true,
+  },
+  {
+    id: 'rule_per_pertemuan',
+    title: 'Les Privat (Per 4 Pertemuan)',
+    billing_type: 'per_pertemuan',
+    default_amount: 300000,
+    due_day_of_month: 5,
+    active: false,
+  },
+];
+
+// Opsi Siswa untuk Form Dropdown Galeri & Tagihan Baru
 export const adminStudentOptions: AdminStudentOption[] = [
   { id: 'std_01', name: 'Kenzo Alfarizi Pratama', class_level: 'Kelas 3 SD' },
   { id: 'std_02', name: 'Nadira Alya Putri', class_level: 'Kelas 1 SD' },
