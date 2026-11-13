@@ -1,10 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Ambil URL dan Public Anon Key dari environment (.env)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-// Cek apakah kredensial Supabase sudah terkonfigurasi dengan valid
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
     supabaseAnonKey &&
@@ -12,29 +10,28 @@ export const isSupabaseConfigured = Boolean(
     !supabaseAnonKey.includes('...')
 );
 
-// Inisialisasi client Supabase
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-// URL Webhook Google Apps Script untuk sinkronisasi Google Sheets
 export const googleSheetsWebhookUrl = import.meta.env.VITE_GOOGLE_SHEETS_WEBHOOK_URL || '';
 
 /**
- * Helper untuk mengirim data pembayaran / absensi langsung ke Google Sheets
+ * Sinkronisasi data ke Google Sheets Webhook
  */
-export async function syncToGoogleSheets(actionType: 'pembayaran_lunas' | 'absensi_baru', payload: any) {
+export async function syncToGoogleSheets(
+  actionType: 'pembayaran_lunas' | 'absensi_baru' | 'verify_pin',
+  payload: any
+) {
   if (!googleSheetsWebhookUrl) {
-    console.info('Google Sheets Webhook URL belum diisi di .env, proses sinkronisasi dilewati.');
     return { success: false, reason: 'no_webhook_url' };
   }
 
   try {
     const response = await fetch(googleSheetsWebhookUrl, {
       method: 'POST',
-      mode: 'no-cors', // Apps script redirect compatibility
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain;charset=utf-8', // Hindari preflight CORS Google Apps Script
       },
       body: JSON.stringify({
         action: actionType,
@@ -43,9 +40,10 @@ export async function syncToGoogleSheets(actionType: 'pembayaran_lunas' | 'absen
       }),
     });
 
-    return { success: true };
+    const result = await response.json().catch(() => null);
+    return { success: true, data: result };
   } catch (err) {
-    console.error('Gagal mengirim ke Google Sheets:', err);
+    console.error('Koneksi Google Sheets:', err);
     return { success: false, error: err };
   }
 }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Student } from '../types/index.ts';
-import { Lock, Delete, PhoneCall, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, Delete, PhoneCall, ShieldCheck, CheckCircle2, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
+import { syncToGoogleSheets } from '../lib/supabase.ts';
 
 interface PinLockScreenProps {
   student: Student;
@@ -13,16 +14,15 @@ interface PinLockScreenProps {
 export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   student,
   onSuccess,
-  availableStudents,
-  onSelectStudent,
 }) => {
   const [pin, setPin] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isError, setIsError] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [attemptCount, setAttemptCount] = useState<number>(0);
 
   const handleDigitPress = (digit: string) => {
-    if (pin.length >= 6) return;
+    if (pin.length >= 6 || isLoading) return;
     const newPin = pin + digit;
     setPin(newPin);
     setErrorMessage('');
@@ -34,208 +34,220 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   };
 
   const handleBackspace = () => {
+    if (isLoading) return;
     setPin((prev) => prev.slice(0, -1));
     setErrorMessage('');
     setIsError(false);
   };
 
   const handleClear = () => {
+    if (isLoading) return;
     setPin('');
     setErrorMessage('');
     setIsError(false);
   };
 
-  const validatePin = (inputPin: string) => {
-    if (inputPin === student.pin) {
+  const validatePin = async (inputPin: string) => {
+    setIsLoading(true);
+
+    // 1. Cek langsung ke database Google Sheets (jika webhook aktif)
+    try {
+      const res = await syncToGoogleSheets('verify_pin', {
+        token: student.token,
+        pin: inputPin,
+      });
+
+      if (res.success && res.data) {
+        if (res.data.status === 'success') {
+          setIsError(false);
+          setIsLoading(false);
+          onSuccess();
+          return;
+        } else if (res.data.status === 'invalid_pin') {
+          handleFailedPin('PIN salah. Silakan periksa kembali 6 digit PIN Anda.');
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Fallback offline / local
+    }
+
+    // 2. Fallback validasi lokal
+    if (inputPin === student.pin || inputPin === '123456') {
       setIsError(false);
-      setErrorMessage('');
+      setIsLoading(false);
       onSuccess();
     } else {
-      setIsError(true);
-      const newAttempts = attemptCount + 1;
-      setAttemptCount(newAttempts);
-      setErrorMessage('PIN tidak sesuai. Silakan periksa kembali 6 angka PIN.');
-      // Auto clear after brief delay
-      setTimeout(() => {
-        setPin('');
-      }, 700);
+      setIsLoading(false);
+      handleFailedPin('PIN 6-digit salah. Silakan coba lagi.');
     }
   };
 
-  const handleAutoFillDemo = () => {
-    setPin(student.pin);
+  const handleFailedPin = (msg: string) => {
+    setIsError(true);
+    setErrorMessage(msg);
+    setAttemptCount((prev) => prev + 1);
+
     setTimeout(() => {
-      onSuccess();
-    }, 350);
+      setPin('');
+    }, 600);
   };
 
-  const handleHelpWhatsApp = () => {
+  const handleContactTeacher = () => {
     const text = encodeURIComponent(
-      `Halo Miss Sarah, saya wali dari ${student.name}. Saya membutuhkan bantuan terkait PIN untuk membuka halaman wali murid Rumah Belajar English.`
+      `Halo Miss Sarah, saya wali dari ${student.name}. Saya lupa 6-digit PIN untuk masuk ke Portal Belajar. Mohon bantuannya ya Miss.`
     );
     window.open(`https://wa.me/${student.teacher_whatsapp}?text=${text}`, '_blank');
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between p-4 sm:p-6 max-w-lg mx-auto">
-      {/* Bagian Atas: Header Ramah & Sambutan */}
-      <div className="pt-4 text-center">
-        {/* Badge Nama Lembaga */}
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-900 font-bold text-sm mb-3">
-          <ShieldCheck className="w-4 h-4 text-blue-700" />
-          <span>Rumah Belajar English</span>
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col justify-between p-4 sm:p-6 select-none">
+      {/* Bagian Atas: Identitas Lembaga & Info Siswa */}
+      <header className="pt-4 sm:pt-6 text-center space-y-3 max-w-md mx-auto w-full">
+        <div className="inline-flex items-center gap-2 bg-blue-950/80 border border-blue-800/80 px-4 py-1.5 rounded-full text-xs font-bold text-blue-200">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span>Akses Resmi & Aman Wali Murid</span>
         </div>
 
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-          Portal Aman Wali Murid
-        </h1>
-        <p className="mt-2 text-slate-700 text-base sm:text-lg">
-          Selamat datang, Wali dari <span className="font-bold text-slate-900">{student.name}</span> ({student.nickname})
+        {/* Avatar Siswa */}
+        <div className="relative inline-block mx-auto pt-2">
+          <img
+            src={student.avatar_url}
+            alt={student.name}
+            className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-4 border-amber-400 shadow-xl mx-auto"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src =
+                'https://ui-avatars.com/api/?name=Kenzo+Alfarizi&background=0F2942&color=fff&size=128';
+            }}
+          />
+          <div className="absolute -bottom-1 -right-1 bg-amber-400 text-slate-950 p-1.5 rounded-full shadow">
+            <Lock className="w-4 h-4" />
+          </div>
+        </div>
+
+        <div>
+          <span className="text-xs font-bold text-amber-300 block uppercase tracking-wider">
+            Portal Belajar Siswa
+          </span>
+          <h1 className="text-xl sm:text-2xl font-black text-white mt-0.5">{student.name}</h1>
+          <p className="text-xs sm:text-sm text-slate-300 font-medium mt-0.5">
+            {student.class_level}
+          </p>
+        </div>
+
+        <p className="text-xs sm:text-sm text-slate-400 font-medium">
+          Masukkan <strong className="text-amber-400">6-Digit PIN</strong> untuk membuka portal belajar ananda (Cukup 1x login):
         </p>
-      </div>
+      </header>
 
-      {/* Bagian Tengah: Tampilan Indikator 6 Digit & Status */}
-      <div className="my-auto py-4 flex flex-col items-center">
-        <div className="flex items-center gap-2 mb-2 text-slate-600 font-medium text-base">
-          <Lock className="w-5 h-5 text-amber-600" />
-          <span>Masukkan 6 Angka PIN Rahasia</span>
-        </div>
-
-        {/* 6 Lingkaran PIN Besar */}
+      {/* Bagian Tengah: Indikator 6 Digit PIN */}
+      <main className="my-auto py-4 text-center space-y-4 max-w-xs mx-auto w-full">
+        {/* 6 Lingkaran PIN */}
         <div
-          className={`flex justify-center items-center gap-3 my-3 p-3 bg-white rounded-2xl border-2 transition-all ${
-            isError ? 'border-red-500 bg-red-50 animate-shake' : 'border-slate-300 shadow-sm'
+          className={`flex items-center justify-center gap-3.5 sm:gap-4 py-2 ${
+            isError ? 'animate-shake' : ''
           }`}
-          role="status"
-          aria-label={`PIN terisi ${pin.length} dari 6 angka`}
+          aria-label={`PIN terisi ${pin.length} dari 6 digit`}
         >
           {[0, 1, 2, 3, 4, 5].map((index) => {
             const isFilled = index < pin.length;
             return (
               <div
                 key={index}
-                className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-xl sm:text-2xl transition-all duration-150 ${
-                  isFilled
-                    ? 'bg-blue-900 text-white shadow-md scale-105'
-                    : 'bg-slate-100 text-slate-300 border-2 border-slate-300'
+                className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full transition-all duration-200 border-2 ${
+                  isError
+                    ? 'bg-rose-500 border-rose-400 scale-110'
+                    : isFilled
+                    ? 'bg-amber-400 border-amber-300 scale-115 shadow-[0_0_12px_rgba(251,191,36,0.6)]'
+                    : 'bg-slate-800 border-slate-600'
                 }`}
-              >
-                {isFilled ? '●' : ''}
-              </div>
+              />
             );
           })}
         </div>
 
-        {/* Notifikasi Error jika PIN salah */}
-        {errorMessage ? (
-          <div className="flex items-center gap-2 text-red-700 font-bold text-sm sm:text-base mt-2 bg-red-100 px-4 py-2 rounded-xl">
-            <AlertCircle className="w-5 h-5 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        ) : (
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Tekan angka di bawah ini seperti pada tombol telepon
-          </p>
-        )}
-
-        {/* Tombol Demo Cepat untuk Uji Coba */}
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={handleAutoFillDemo}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-sm border-2 border-amber-300 transition-colors shadow-sm active:scale-95"
-          >
-            <CheckCircle2 className="w-4 h-4 text-amber-700" />
-            <span>Klik di Sini untuk Isi PIN Otomatis ({student.pin})</span>
-          </button>
+        {/* Pesan Kesalahan atau Indikator Loading */}
+        <div className="min-h-[28px] flex items-center justify-center">
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Memverifikasi PIN ke database...</span>
+            </div>
+          ) : errorMessage ? (
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-rose-400 bg-rose-950/60 border border-rose-800 px-3 py-1 rounded-xl">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-500 font-medium">
+              PIN bawaan standar demo: <strong>123456</strong>
+            </span>
+          )}
         </div>
-      </div>
+      </main>
 
-      {/* Bagian Bawah: Keypad Virtual Angka Besar (Format Telepon) */}
-      <div className="w-full max-w-sm mx-auto">
+      {/* Bagian Bawah: Keypad Numerik Sentuh Besar (Mobile Friendly) */}
+      <footer className="pb-4 max-w-xs sm:max-w-sm mx-auto w-full space-y-4">
         <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
             <button
-              key={digit}
+              key={num}
               type="button"
-              onClick={() => handleDigitPress(digit)}
-              className="h-16 sm:h-18 rounded-2xl bg-white border-2 border-slate-300 hover:border-blue-900 hover:bg-blue-50 text-slate-900 active:bg-blue-900 active:text-white font-extrabold text-2xl sm:text-3xl shadow-sm transition-all flex items-center justify-center select-none active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-200"
-              aria-label={`Tombol angka ${digit}`}
+              disabled={isLoading}
+              onClick={() => handleDigitPress(num)}
+              className="h-16 sm:h-18 rounded-2xl bg-slate-800/90 hover:bg-slate-700 active:bg-blue-900 border border-slate-700 text-2xl sm:text-3xl font-black text-white shadow-md active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-50"
+              aria-label={`Angka ${num}`}
             >
-              {digit}
+              {num}
             </button>
           ))}
 
-          {/* Tombol Hapus Semua */}
+          {/* Tombol Hapus Semua (Clear) */}
           <button
             type="button"
+            disabled={isLoading || pin.length === 0}
             onClick={handleClear}
-            className="h-16 sm:h-18 rounded-2xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-base shadow-sm transition-all flex items-center justify-center select-none active:scale-95 focus:outline-none focus:ring-4 focus:ring-slate-300"
-            aria-label="Hapus semua angka"
+            className="h-16 sm:h-18 rounded-2xl bg-slate-800/50 hover:bg-slate-700 active:bg-slate-900 border border-slate-800 text-xs sm:text-sm font-extrabold text-slate-400 active:scale-95 transition-all flex items-center justify-center disabled:opacity-30 cursor-pointer"
           >
-            Bersihkan
+            Hapus
           </button>
 
-          {/* Tombol Angka 0 */}
+          {/* Angka 0 */}
           <button
             type="button"
+            disabled={isLoading}
             onClick={() => handleDigitPress('0')}
-            className="h-16 sm:h-18 rounded-2xl bg-white border-2 border-slate-300 hover:border-blue-900 hover:bg-blue-50 text-slate-900 active:bg-blue-900 active:text-white font-extrabold text-2xl sm:text-3xl shadow-sm transition-all flex items-center justify-center select-none active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-200"
-            aria-label="Tombol angka 0"
+            className="h-16 sm:h-18 rounded-2xl bg-slate-800/90 hover:bg-slate-700 active:bg-blue-900 border border-slate-700 text-2xl sm:text-3xl font-black text-white shadow-md active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-50"
+            aria-label="Angka 0"
           >
             0
           </button>
 
-          {/* Tombol Hapus 1 Digit (Backspace) */}
+          {/* Tombol Backspace (Hapus 1 Karakter Terakhir) */}
           <button
             type="button"
+            disabled={isLoading || pin.length === 0}
             onClick={handleBackspace}
-            className="h-16 sm:h-18 rounded-2xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-base shadow-sm transition-all flex items-center justify-center gap-1 select-none active:scale-95 focus:outline-none focus:ring-4 focus:ring-slate-300"
+            className="h-16 sm:h-18 rounded-2xl bg-slate-800/80 hover:bg-slate-700 active:bg-rose-950 border border-slate-700 text-slate-300 active:scale-95 transition-all flex items-center justify-center disabled:opacity-30 cursor-pointer"
             aria-label="Hapus satu angka"
           >
-            <Delete className="w-6 h-6" />
+            <Delete className="w-6 h-6 sm:w-7 sm:h-7" />
           </button>
         </div>
 
-        {/* Tombol Bantuan WA untuk Orang Tua */}
-        <div className="mt-5 text-center flex flex-col items-center gap-2">
+        {/* Bantuan Lupa PIN via WhatsApp Tutor */}
+        <div className="pt-2 text-center">
           <button
             type="button"
-            onClick={handleHelpWhatsApp}
-            className="inline-flex items-center gap-2 text-slate-700 hover:text-green-700 font-semibold text-sm sm:text-base py-2 px-3 rounded-lg hover:bg-slate-100 transition-colors"
+            onClick={handleContactTeacher}
+            className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-bold underline transition-colors"
           >
-            <PhoneCall className="w-5 h-5 text-green-600" />
-            <span>Lupa PIN? Tanya Miss Sarah via WhatsApp</span>
+            <PhoneCall className="w-3.5 h-3.5" />
+            <span>Lupa PIN? Hubungi Miss Sarah (WhatsApp)</span>
           </button>
-
-          {/* Switch Siswa Contoh (Jika ada) */}
-          {availableStudents && availableStudents.length > 1 && onSelectStudent && (
-            <div className="pt-2 border-t border-slate-200 w-full flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-600">
-              <span>Ganti Profil Siswa Uji Coba:</span>
-              <div className="flex gap-2">
-                {availableStudents.map((st) => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectStudent(st);
-                      setPin('');
-                      setErrorMessage('');
-                    }}
-                    className={`px-2.5 py-1 rounded-md font-bold text-xs ${
-                      st.id === student.id
-                        ? 'bg-blue-900 text-white'
-                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                    }`}
-                  >
-                    {st.nickname}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
-      </div>
+      </footer>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 export type AttendanceStatus = 'hadir' | 'izin' | 'sakit' | 'alpa';
-export type TuitionStatus = 'lunas' | 'menunggu' | 'belum';
+export type TuitionStatus = 'lunas' | 'cicilan' | 'menunggu' | 'belum';
 export type LearningPlanStatus = 'selesai' | 'sedang_berjalan' | 'akan_datang';
+export type BillingType = 'bulanan' | 'per_pertemuan' | 'lainnya';
 
 export interface LearningPlanItem {
   id: string;
@@ -49,13 +50,26 @@ export interface GalleryItem {
 export interface TuitionRecord {
   id: string;
   student_id: string;
+  title?: string; // e.g. "SPP Bulanan", "Modul & Flashcard", "4x Pertemuan Private"
   period: string; // e.g. "November 2024"
-  amount: number;
+  billing_type?: BillingType;
+  amount: number; // Total tagihan
+  paid_amount?: number; // Nominal yang sudah dibayarkan (untuk cicilan)
+  remaining_amount?: number; // Sisa kekurangan tagihan
   due_date: string;
   status: TuitionStatus;
   payment_date?: string;
   payment_method?: string;
   proof_url?: string;
+  notes?: string;
+}
+
+export interface RecurringBillingConfig {
+  billing_type: 'bulanan' | 'per_pertemuan';
+  title: string;
+  default_amount: number;
+  due_day_of_month: number; // tanggal jatuh tempo (misal tgl 10)
+  auto_generate: boolean;
 }
 
 export interface BankAccount {

@@ -13,6 +13,7 @@ import {
 import { Student, TuitionRecord, InstitutionConfig } from './types/index.ts';
 import { StudentProfileHeader } from './components/StudentProfileHeader.tsx';
 import { TabNavigation, ActiveTabType } from './components/TabNavigation.tsx';
+import { PinLockScreen } from './components/PinLockScreen.tsx';
 import { AttendanceTab } from './components/AttendanceTab.tsx';
 import { ExamResultsTab } from './components/ExamResultsTab.tsx';
 import { LearningPlanTab } from './components/LearningPlanTab.tsx';
@@ -21,7 +22,7 @@ import { TuitionTab } from './components/TuitionTab.tsx';
 import { AdminDashboard } from './components/admin/AdminDashboard.tsx';
 import { TutorDashboard } from './components/tutor/TutorDashboard.tsx';
 import { ThemeTogglePill } from './components/ThemeTogglePill.tsx';
-import { ShieldCheck, RotateCcw, Sparkles, Building2, Edit3, X, Check } from 'lucide-react';
+import { ShieldCheck, RotateCcw, Building2, Edit3, X, Check, LogOut } from 'lucide-react';
 
 export default function App() {
   // Routing internal untuk /admin, /tutor, dan / (Portal Wali Murid)
@@ -47,7 +48,7 @@ export default function App() {
     setCurrentPath(path);
   };
 
-  // 6. Konfigurasi Nama Lembaga & Logo (Tersedia state dan dialog pengeditan cepat)
+  // Konfigurasi Nama Lembaga & Logo
   const [institution, setInstitution] = useState<InstitutionConfig>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('rbe_institution_config');
@@ -81,7 +82,7 @@ export default function App() {
     setShowConfigModal(false);
   };
 
-  // State Siswa Aktif
+  // Siswa Aktif (Identifikasi dari parameter ?token= di link WhatsApp)
   const [currentStudent, setCurrentStudent] = useState<Student>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -98,7 +99,32 @@ export default function App() {
     return mockStudents[0];
   });
 
-  // 2. Fungsi Mengubah Foto Profil Siswa secara Dinamis
+  // SISTEM LOGIN 1 KALI (Disimpan di Local Cache Browser Wali Murid)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      // Cek apakah wali murid untuk siswa ini sudah pernah login sebelumnya di HP ini
+      const cachedAuth = localStorage.getItem(`rbe_auth_${currentStudent.id}`);
+      return cachedAuth === 'true';
+    }
+    return false;
+  });
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    if (typeof window !== 'undefined') {
+      // Simpan status login di local cache browser sehingga tidak perlu login lagi
+      localStorage.setItem(`rbe_auth_${currentStudent.id}`, 'true');
+    }
+  };
+
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(`rbe_auth_${currentStudent.id}`);
+    }
+    setIsAuthenticated(false);
+  };
+
+  // Fungsi Mengubah Foto Profil Siswa secara Dinamis
   const handleUpdateStudentAvatar = (newAvatarUrl: string) => {
     setCurrentStudent((prev) => {
       const updated = { ...prev, avatar_url: newAvatarUrl };
@@ -109,8 +135,18 @@ export default function App() {
     });
   };
 
-  // State Tab Aktif di Halaman Wali Murid (default: absensi)
+  // State Tab Aktif & Arah Geser untuk Animasi Slide Kiri/Kanan
+  const tabOrder: ActiveTabType[] = ['attendance', 'exam_results', 'learning_plan', 'gallery', 'tuition'];
   const [activeTab, setActiveTab] = useState<ActiveTabType>('attendance');
+  const [slideDirection, setSlideDirection] = useState<'right' | 'left'>('right');
+
+  const handleChangeTab = (nextTab: ActiveTabType) => {
+    const currentIndex = tabOrder.indexOf(activeTab);
+    const nextIndex = tabOrder.indexOf(nextTab);
+    // Jika nomor tab berikutnya lebih besar, geser dari kanan; jika lebih kecil, geser dari kiri
+    setSlideDirection(nextIndex >= currentIndex ? 'right' : 'left');
+    setActiveTab(nextTab);
+  };
 
   // State Status Pembayaran Iuran
   const [tuitionRecords, setTuitionRecords] = useState<TuitionRecord[]>(() => {
@@ -148,15 +184,16 @@ export default function App() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(`rbe_tuition_${currentStudent.id}`);
       localStorage.removeItem(`rbe_student_avatar_${currentStudent.id}`);
+      localStorage.removeItem(`rbe_auth_${currentStudent.id}`);
       localStorage.removeItem('rbe_institution_config');
     }
     setTuitionRecords(mockTuitionRecords.filter((t) => t.student_id === currentStudent.id));
     setCurrentStudent(mockStudents[0]);
     setInstitution(initialInstitutionConfig);
-    alert('Data simulasi dan konfigurasi berhasil di-reset.');
+    setIsAuthenticated(false);
+    alert('Data cache login dan simulasi berhasil di-reset.');
   };
 
-  // Jumlah tagihan yang belum dibayar
   const unpaidCount = tuitionRecords.filter((t) => t.status === 'belum').length;
 
   // Rute Khusus Admin: /admin
@@ -169,13 +206,23 @@ export default function App() {
     return <TutorDashboard onNavigate={navigateTo} />;
   }
 
-  // 7. Tampilan Utama: Portal Wali Murid Murni (Tombol Tutor & Admin dihilangkan dari header/footer)
+  // JIKA BELUM LOGIN: Tampilkan Layar Kunci 6-Digit PIN (Hanya Muncul 1 Kali di HP Wali Murid)
+  if (!isAuthenticated) {
+    return (
+      <PinLockScreen
+        student={currentStudent}
+        onSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
+  // JIKA SUDAH LOGIN: Tampilkan Portal Belajar Siswa
   return (
     <div className="min-h-screen bg-slate-100/90 text-slate-900 pb-28 sm:pb-36">
       {/* Top Bar Header Resmi Lembaga */}
       <header className="sticky top-0 z-30 bg-blue-950 text-white shadow-md border-b-2 border-amber-400">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* Logo & Judul Lembaga (Konfigurabel) */}
+          {/* Logo & Judul Lembaga */}
           <div className="flex items-center gap-3">
             {institution.logo_url ? (
               <img
@@ -193,7 +240,6 @@ export default function App() {
                 <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight">
                   {institution.name}
                 </h1>
-                {/* Tombol pensil kecil untuk memudahkan Anda mengubah nama lembaga & logo */}
                 <button
                   type="button"
                   onClick={() => {
@@ -214,15 +260,24 @@ export default function App() {
             </div>
           </div>
 
-          {/* Sisi Kanan: Hanya Pemilih Tema (Bebas dari Tombol Admin & Tutor) */}
+          {/* Sisi Kanan: Pemilih Tema & Tombol Keluar Akun */}
           <div className="flex items-center gap-2">
             <ThemeTogglePill />
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="p-2 rounded-xl bg-blue-900/80 hover:bg-rose-900 text-white transition-colors"
+              title="Kunci / Keluar Akun"
+              aria-label="Keluar"
+            >
+              <LogOut className="w-4 h-4 text-slate-300 hover:text-white" />
+            </button>
           </div>
         </div>
       </header>
 
       {/* Kontainer Utama Mobile-First */}
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 pt-5 space-y-6">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 pt-5 space-y-6 overflow-hidden">
         {/* Banner Selamat Datang Hangat */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex items-center justify-between">
           <div className="flex items-center gap-2.5 text-slate-800">
@@ -242,17 +297,23 @@ export default function App() {
           />
         </section>
 
-        {/* 2. Menu Navigasi Vertikal Tombol Besar + Fixed Bottom Bar */}
+        {/* 2. Navigasi Bar Tab (Bottom Bar di HP + Top Segmen di Desktop) */}
         <section aria-label="Menu Pilihan Informasi">
           <TabNavigation
             activeTab={activeTab}
-            onChangeTab={setActiveTab}
+            onChangeTab={handleChangeTab}
             unpaidCount={unpaidCount}
           />
         </section>
 
-        {/* 3. Konten Tab Terpilih */}
-        <section id="tab-content-area" className="pt-2 scroll-mt-20">
+        {/* 3. Konten Tab Terpilih dengan Efek Sentuhan Geser Kiri-Kanan Halus */}
+        <section
+          id="tab-content-area"
+          key={activeTab}
+          className={`pt-1 scroll-mt-20 ${
+            slideDirection === 'right' ? 'tab-slide-right' : 'tab-slide-left'
+          }`}
+        >
           {activeTab === 'attendance' && <AttendanceTab records={studentAttendance} />}
           {activeTab === 'exam_results' && (
             <ExamResultsTab results={studentExamResults} studentName={currentStudent.nickname} />
@@ -279,12 +340,12 @@ export default function App() {
             className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 font-bold bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-2xs transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-            <span>Reset Data Simulasi Uji Coba</span>
+            <span>Kunci Kembali & Reset Uji Coba</span>
           </button>
         </div>
       </main>
 
-      {/* 6. Modal Pengaturan Nama Lembaga & Logo */}
+      {/* Modal Pengaturan Nama Lembaga & Logo */}
       {showConfigModal && (
         <div
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center"

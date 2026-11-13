@@ -1,21 +1,7 @@
 /**
  * =========================================================================
- * GOOGLE APPS SCRIPT: SINKRONISASI SUPABASE KE GOOGLE SHEETS
+ * GOOGLE APPS SCRIPT: SINKRONISASI DATABASE PORTAL WALI MURID
  * =========================================================================
- * 
- * CARA MEMASANG:
- * 1. Buka Google Sheets Anda (https://sheets.new).
- * 2. Beri nama sheet (tab di bagian bawah) dengan: "Pembayaran SPP" dan "Absensi Siswa".
- * 3. Di Google Sheets, klik menu: "Extensions" (Ekstensi) -> "Apps Script".
- * 4. Hapus semua kode default di dalam editor Apps Script, lalu COPY dan PASTE seluruh isi file ini.
- * 5. Klik "Save" (ikon disket).
- * 6. Klik tombol "Deploy" (Terapkan) di pojok kanan atas -> pilih "New deployment" (Penerapan baru).
- * 7. Pilih tipe: "Web app" (Aplikasi web).
- *    - Description: "Webhook Sync Portal Wali Murid"
- *    - Execute as: "Me" (Saya)
- *    - Who has access: "Anyone" (Siapa saja)  <-- PENTING agar web bisa mengirim data!
- * 8. Klik "Deploy". Salin "Web app URL" yang muncul (berawalan https://script.google.com/macros/s/...).
- * 9. Tempelkan URL tersebut ke file .env Anda di VITE_GOOGLE_SHEETS_WEBHOOK_URL.
  */
 
 function doPost(e) {
@@ -27,6 +13,60 @@ function doPost(e) {
     var timestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 0. VERIFIKASI LOGIN PIN WALI MURID (Berdasarkan Token Siswa & 6-Digit PIN)
+    if (action === "verify_pin") {
+      var studentSheet = ss.getSheetByName("Data Akun Siswa");
+      if (!studentSheet) {
+        studentSheet = initStudentAccountsSheet(ss);
+      }
+
+      var rows = studentSheet.getDataRange().getValues();
+      var targetToken = (data.token || "").toLowerCase().trim();
+      var inputPin = String(data.pin || "").trim();
+
+      // Cari baris siswa yang cocok dengan token
+      var foundStudent = null;
+      for (var i = 1; i < rows.length; i++) {
+        var rowToken = String(rows[i][1] || "").toLowerCase().trim(); // Kolom B: Token
+        var rowPin = String(rows[i][5] || "").trim(); // Kolom F: 6 Digit PIN
+
+        if (rowToken === targetToken || (!targetToken && i === 1)) {
+          if (rowPin === inputPin) {
+            foundStudent = {
+              id: String(rows[i][0] || "std_01"),
+              token: String(rows[i][1] || "kenzo-404"),
+              name: String(rows[i][2] || "Kenzo Alfarizi Pratama"),
+              nickname: String(rows[i][3] || "Kenzo"),
+              class_level: String(rows[i][4] || "Primary English Explorer (Kelas 3 SD)"),
+              pin: rowPin,
+              teacher_whatsapp: String(rows[i][6] || "6281234567890"),
+              schedule: String(rows[i][7] || "Selasa & Kamis · 15.30 - 17.00 WIB"),
+              teacher_name: String(rows[i][8] || "Miss Sarah Amalia, S.Pd.")
+            };
+            break;
+          } else {
+            return ContentService.createTextOutput(JSON.stringify({
+              status: "invalid_pin",
+              message: "PIN 6-digit salah. Silakan coba lagi."
+            })).setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+      }
+
+      if (foundStudent) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          message: "Login berhasil",
+          student: foundStudent
+        })).setMimeType(ContentService.MimeType.JSON);
+      } else {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "not_found",
+          message: "Akun siswa dengan token ini tidak ditemukan di database."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
 
     // 1. SINKRONISASI PEMBAYARAN SPP LUNAS
     if (action === "pembayaran_lunas") {
@@ -105,6 +145,38 @@ function doPost(e) {
       message: err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+// Helper untuk membuat sheet "Data Akun Siswa" jika belum ada
+function initStudentAccountsSheet(ss) {
+  var sheet = ss.insertSheet("Data Akun Siswa");
+  sheet.appendRow([
+    "ID Siswa",
+    "Token Link",
+    "Nama Lengkap Siswa",
+    "Panggilan",
+    "Tingkat Kelas",
+    "PIN (6 Digit)",
+    "No. WhatsApp Guru/Wali",
+    "Jadwal Les",
+    "Nama Tutor"
+  ]);
+  sheet.getRange("A1:I1").setFontWeight("bold").setBackground("#fed7aa");
+
+  // Tambahkan baris awal untuk Kenzo
+  sheet.appendRow([
+    "std_01",
+    "kenzo-404",
+    "Kenzo Alfarizi Pratama",
+    "Kenzo",
+    "Primary English Explorer (Kelas 3 SD)",
+    "123456",
+    "6281234567890",
+    "Selasa & Kamis · 15.30 - 17.00 WIB",
+    "Miss Sarah Amalia, S.Pd."
+  ]);
+
+  return sheet;
 }
 
 function doGet(e) {
