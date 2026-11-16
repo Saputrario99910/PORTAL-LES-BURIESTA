@@ -19,6 +19,7 @@ import { ExamResultsTab } from './components/ExamResultsTab.tsx';
 import { LearningPlanTab } from './components/LearningPlanTab.tsx';
 import { GalleryTab } from './components/GalleryTab.tsx';
 import { TuitionTab } from './components/TuitionTab.tsx';
+import { ChildSwitcher } from './components/ChildSwitcher.tsx';
 import { AdminDashboard } from './components/admin/AdminDashboard.tsx';
 import { TutorDashboard } from './components/tutor/TutorDashboard.tsx';
 import { ThemeTogglePill } from './components/ThemeTogglePill.tsx';
@@ -82,13 +83,18 @@ export default function App() {
     setShowConfigModal(false);
   };
 
-  // Siswa Aktif (Identifikasi dari parameter ?token= di link WhatsApp)
+  // Siswa Aktif (Identifikasi dari parameter ?token= atau sesi aktif)
   const [currentStudent, setCurrentStudent] = useState<Student>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const token = params.get('token');
       if (token) {
         const found = mockStudents.find((s) => s.token === token);
+        if (found) return found;
+      }
+      const activeId = localStorage.getItem('rbe_active_student_id');
+      if (activeId) {
+        const found = mockStudents.find((s) => s.id === activeId);
         if (found) return found;
       }
       const savedAvatar = localStorage.getItem('rbe_student_avatar_std_01');
@@ -102,6 +108,23 @@ export default function App() {
       }
     }
     return mockStudents[0];
+  });
+
+  // Daftar ID Siswa yang Terhubung / Unlocked di HP Ini (Multi-Child Session)
+  const [unlockedStudentIds, setUnlockedStudentIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('rbe_unlocked_children');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch {
+          // fallback
+        }
+      }
+    }
+    // Default: Kenzo & Nadira aktif terhubung untuk demo multi-anak
+    return ['std_01', 'std_02'];
   });
 
   // SISTEM LOGIN 1 KALI (Disimpan di Local Cache Browser Wali Murid)
@@ -119,7 +142,33 @@ export default function App() {
     if (typeof window !== 'undefined') {
       // Simpan status login di local cache browser sehingga tidak perlu login lagi
       localStorage.setItem(`rbe_auth_${currentStudent.id}`, 'true');
+      localStorage.setItem('rbe_active_student_id', currentStudent.id);
     }
+  };
+
+  // Fungsi Beralih Anak secara Instan Tanpa Login Ulang
+  const handleSwitchChild = (selected: Student) => {
+    setCurrentStudent(selected);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rbe_active_student_id', selected.id);
+      localStorage.setItem(`rbe_auth_${selected.id}`, 'true');
+    }
+    setIsAuthenticated(true);
+  };
+
+  // Callback saat anak baru berhasil dihubungkan via verifikasi PIN 1x
+  const handleAddNewChildSuccess = (newChild: Student) => {
+    setUnlockedStudentIds((prev) => {
+      const next = Array.from(new Set([...prev, newChild.id]));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('rbe_unlocked_children', JSON.stringify(next));
+        localStorage.setItem(`rbe_auth_${newChild.id}`, 'true');
+        localStorage.setItem('rbe_active_student_id', newChild.id);
+      }
+      return next;
+    });
+    setCurrentStudent(newChild);
+    setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
@@ -178,6 +227,40 @@ export default function App() {
     }
     return mockTuitionRecords.filter((t) => t.student_id === currentStudent.id);
   });
+
+  // Sinkronisasi data iuran ketika profil anak berganti
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`rbe_tuition_${currentStudent.id}`);
+      if (saved) {
+        try {
+          setTuitionRecords(JSON.parse(saved));
+          return;
+        } catch {
+          // fallback
+        }
+      }
+    }
+    const filtered = mockTuitionRecords.filter((t) => t.student_id === currentStudent.id);
+    if (filtered.length > 0) {
+      setTuitionRecords(filtered);
+    } else {
+      // Fallback sample tagihan untuk siswa yang baru di-switch
+      setTuitionRecords([
+        {
+          id: `tui_gen_${currentStudent.id}`,
+          student_id: currentStudent.id,
+          title: 'SPP Reguler Bulanan',
+          period: 'November 2024',
+          billing_type: 'bulanan',
+          amount: 250000,
+          total_amount: 250000,
+          due_date: '10 November 2024',
+          status: 'belum',
+        },
+      ]);
+    }
+  }, [currentStudent.id]);
 
   // Data filter per siswa aktif
   const studentAttendance = mockAttendanceRecords.filter((a) => a.student_id === currentStudent.id);
@@ -278,8 +361,15 @@ export default function App() {
             </div>
           </div>
 
-          {/* Sisi Kanan: Pemilih Tema & Tombol Keluar Akun */}
+          {/* Sisi Kanan: Child Switcher, Pemilih Tema & Tombol Keluar Akun */}
           <div className="flex items-center gap-2">
+            <ChildSwitcher
+              currentStudent={currentStudent}
+              allStudents={mockStudents}
+              unlockedStudentIds={unlockedStudentIds}
+              onSelectStudent={handleSwitchChild}
+              onAddNewChildSuccess={handleAddNewChildSuccess}
+            />
             <ThemeTogglePill />
             <button
               type="button"
@@ -297,13 +387,23 @@ export default function App() {
       {/* Kontainer Utama Mobile-First */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 pt-5 space-y-6 overflow-hidden">
         {/* Banner Selamat Datang Hangat */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-slate-800">
             <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
             <p className="text-sm sm:text-base font-bold">
               Selamat datang, Wali dari{' '}
               <span className="text-blue-900 font-extrabold">{currentStudent.name}</span>
             </p>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="text-xs text-slate-500 font-semibold hidden sm:inline">Ganti Siswa:</span>
+            <ChildSwitcher
+              currentStudent={currentStudent}
+              allStudents={mockStudents}
+              unlockedStudentIds={unlockedStudentIds}
+              onSelectStudent={handleSwitchChild}
+              onAddNewChildSuccess={handleAddNewChildSuccess}
+            />
           </div>
         </div>
 
