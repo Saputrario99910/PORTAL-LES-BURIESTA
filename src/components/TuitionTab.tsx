@@ -36,12 +36,22 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [senderName, setSenderName] = useState<string>('');
+  const [proofTransferDate, setProofTransferDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [proofSenderLast4, setProofSenderLast4] = useState<string>('');
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string>('');
 
-  // State untuk modal konfirmasi "Sudah Membayar (Cash / Transfer Langsung)"
+  // State untuk modal konfirmasi "Saya sudah transfer, mohon verifikasi"
   const [showDirectPayModal, setShowDirectPayModal] = useState<boolean>(false);
   const [directPayRecord, setDirectPayRecord] = useState<TuitionRecord | null>(null);
-  const [paymentTypeChosen, setPaymentTypeChosen] = useState<'cash' | 'transfer'>('cash');
+  const [paymentTypeChosen, setPaymentTypeChosen] = useState<'cash' | 'transfer'>('transfer');
+  const [directTransferDate, setDirectTransferDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [directSenderLast4, setDirectSenderLast4] = useState<string>('');
+  const [directSenderName, setDirectSenderName] = useState<string>('');
+  const [directPaymentNotes, setDirectPaymentNotes] = useState<string>('');
 
   const formatRupiah = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -96,34 +106,61 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
   const openPaymentModal = (record: TuitionRecord) => {
     setSelectedRecordForPayment(record);
     setUploadedFile(record.proof_url || null);
-    setSenderName('');
+    setSenderName(record.sender_name || '');
+    setProofTransferDate(new Date().toISOString().split('T')[0]);
+    setProofSenderLast4(record.sender_last4 || '');
     setShowPaymentModal(true);
     setPaymentSuccessMessage('');
   };
 
-  // Buka modal khusus "Sudah Membayar" (Cash / Transfer Langsung)
+  // Buka modal khusus "Saya sudah transfer, mohon verifikasi"
   const openDirectPayModal = (record: TuitionRecord) => {
     setDirectPayRecord(record);
+    setPaymentTypeChosen('transfer');
+    setDirectTransferDate(new Date().toISOString().split('T')[0]);
+    setDirectSenderLast4('');
+    setDirectSenderName('');
+    setDirectPaymentNotes('');
     setShowDirectPayModal(true);
   };
 
   const handleConfirmDirectPayment = () => {
     if (!directPayRecord) return;
 
-    const todayDate = new Date().toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    let formattedDate = directTransferDate;
+    if (directTransferDate) {
+      try {
+        const parts = directTransferDate.split('-');
+        if (parts.length === 3) {
+          const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          formattedDate = d.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          });
+        }
+      } catch {
+        formattedDate = directTransferDate;
+      }
+    } else {
+      formattedDate = new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    }
 
     const updated: TuitionRecord = {
       ...directPayRecord,
-      status: 'menunggu', // Wali murid menandai sudah membayar, masuk verifikasi admin/tutor
-      payment_date: todayDate,
+      status: 'menunggu', // Wali murid menandai sudah transfer, masuk verifikasi admin
+      payment_date: formattedDate,
+      sender_name: directSenderName.trim() || undefined,
+      sender_last4: directSenderLast4.trim() || undefined,
       payment_method:
         paymentTypeChosen === 'cash'
-          ? 'Tunai / Cash Langsung di Lembaga'
-          : 'Transfer Langsung ke Rekening SPP',
+          ? 'Tunai / Cash di Lembaga'
+          : `Transfer Bank${directSenderLast4.trim() ? ' (Rek: ...' + directSenderLast4.trim() + ')' : ''}${directSenderName.trim() ? ' a.n ' + directSenderName.trim() : ''}`,
+      notes: directPaymentNotes.trim() || directPayRecord.notes,
     };
 
     onUpdateRecord(updated);
@@ -144,21 +181,42 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
   const handleSubmitProof = () => {
     if (!selectedRecordForPayment) return;
 
-    const updated: TuitionRecord = {
-      ...selectedRecordForPayment,
-      status: 'menunggu',
-      proof_url: uploadedFile || 'uploaded_proof_placeholder.jpg',
-      payment_date: new Date().toLocaleDateString('id-ID', {
+    let formattedDate = proofTransferDate;
+    if (proofTransferDate) {
+      try {
+        const parts = proofTransferDate.split('-');
+        if (parts.length === 3) {
+          const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          formattedDate = d.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          });
+        }
+      } catch {
+        formattedDate = proofTransferDate;
+      }
+    } else {
+      formattedDate = new Date().toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
-      }),
-      payment_method: 'Transfer Bank (Bukti Terunggah)',
+      });
+    }
+
+    const updated: TuitionRecord = {
+      ...selectedRecordForPayment,
+      status: 'menunggu',
+      proof_url: uploadedFile || selectedRecordForPayment.proof_url || 'uploaded_proof_placeholder.jpg',
+      payment_date: formattedDate,
+      sender_name: senderName.trim() || undefined,
+      sender_last4: proofSenderLast4.trim() || undefined,
+      payment_method: `Transfer Bank${proofSenderLast4.trim() ? ' (Rek: ...' + proofSenderLast4.trim() + ')' : ''}${senderName.trim() ? ' a.n ' + senderName.trim() : ''}`,
     };
 
     onUpdateRecord(updated);
     setPaymentSuccessMessage(
-      `Terima kasih! Bukti transfer untuk iuran ${selectedRecordForPayment.period} berhasil tersimpan dan akan diverifikasi pengajar.`
+      `Terima kasih! Konfirmasi transfer untuk iuran ${selectedRecordForPayment.period} berhasil dikirim dan akan segera diverifikasi pengajar.`
     );
   };
 
@@ -261,15 +319,15 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
                 <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                   {(rec.status === 'belum' || rec.status === 'cicilan') && (
                     <>
-                      {/* Tombol Cepat: Sudah Membayar (Cash / Transfer Langsung) */}
+                      {/* Tombol Cepat: Saya sudah transfer, mohon verifikasi */}
                       <button
                         type="button"
                         onClick={() => openDirectPayModal(rec)}
-                        className="flex-1 sm:flex-none min-h-[48px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
-                        title="Klik jika sudah bayar cash di tempat atau transfer langsung tanpa upload bukti"
+                        className="flex-1 sm:flex-none min-h-[48px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                        title="Klik untuk konfirmasi transfer iuran dan kirim verifikasi ke admin"
                       >
-                        <Banknote className="w-5 h-5 text-amber-300" />
-                        <span>{isCicilan ? 'Bayar Sisa Cicilan' : 'Sudah Membayar'}</span>
+                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300 shrink-0" />
+                        <span>{isCicilan ? 'Saya sudah transfer sisa, mohon verifikasi' : 'Saya sudah transfer, mohon verifikasi'}</span>
                       </button>
 
                       <button
@@ -376,105 +434,182 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
         </div>
       </div>
 
-      {/* 5. Modal Konfirmasi Cepat "Sudah Membayar" (Cash / Transfer Langsung) */}
-      {showDirectPayModal && directPayRecord && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center"
-          onClick={() => setShowDirectPayModal(false)}
-        >
+      {/* 5. Modal Konfirmasi Cepat "Saya sudah transfer, mohon verifikasi" */}
+      {showDirectPayModal && directPayRecord && (() => {
+        const isDirectPayValid =
+          paymentTypeChosen === 'cash' ||
+          Boolean(directTransferDate.trim()) ||
+          directSenderLast4.trim().length === 4;
+
+        return (
           <div
-            className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-emerald-500 space-y-4"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs p-4 flex items-center justify-center overflow-y-auto"
+            onClick={() => setShowDirectPayModal(false)}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-emerald-950 font-black text-lg">
-                <Banknote className="w-6 h-6 text-emerald-600" />
-                <span>Konfirmasi Sudah Membayar</span>
+            <div
+              className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border-2 border-emerald-500 space-y-4 my-auto max-h-[92vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 text-emerald-950 font-black text-lg">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                  <span>Saya Sudah Transfer</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDirectPayModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowDirectPayModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-1">
-              <span className="text-xs text-emerald-800 font-bold block">Periode Tagihan:</span>
-              <p className="text-xl font-black text-emerald-950">{directPayRecord.period}</p>
-              <p className="text-sm font-black text-blue-950 font-mono">
-                {formatRupiah(directPayRecord.amount)}
+              <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 space-y-1">
+                <span className="text-xs text-emerald-800 font-bold block">Periode Tagihan:</span>
+                <p className="text-lg font-black text-emerald-950">{directPayRecord.period}</p>
+                <p className="text-base font-black text-blue-950 font-mono">
+                  {formatRupiah(directPayRecord.amount)}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-800 block">
+                  Metode Pembayaran:
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentTypeChosen('transfer')}
+                    className={`p-2.5 rounded-xl border-2 text-left font-bold text-xs transition-colors flex flex-col gap-1 ${
+                      paymentTypeChosen === 'transfer'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-950'
+                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 font-black">
+                      🏦 Transfer Bank
+                    </span>
+                    <span className="text-[10px] font-normal text-slate-500">
+                      m-Banking / ATM
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentTypeChosen('cash')}
+                    className={`p-2.5 rounded-xl border-2 text-left font-bold text-xs transition-colors flex flex-col gap-1 ${
+                      paymentTypeChosen === 'cash'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-950'
+                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 font-black">
+                      💵 Bayar Tunai
+                    </span>
+                    <span className="text-[10px] font-normal text-slate-500">
+                      Cash di meja les
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {paymentTypeChosen === 'transfer' && (
+                <div className="space-y-3 pt-1 border-t border-slate-100">
+                  <div className="bg-blue-50/70 border border-blue-200 p-2.5 rounded-xl text-[11px] text-blue-900 font-medium">
+                    ℹ️ Mohon isi <strong>Tanggal Transfer</strong> ATAU <strong>4 Digit Rekening Pengirim</strong> untuk memudahkan pencocokan mutasi bank.
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      📅 Tanggal Transfer Dilakukan: <span className="text-emerald-700 font-extrabold">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={directTransferDate}
+                      onChange={(e) => setDirectTransferDate(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border-2 border-slate-300 font-bold text-sm text-slate-900 focus:border-emerald-600 focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      💳 4 Digit Terakhir No. Rekening Pengirim:
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={directSenderLast4}
+                      onChange={(e) => setDirectSenderLast4(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Contoh: 8812"
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border-2 border-slate-300 font-bold text-sm tracking-widest text-slate-900 placeholder:tracking-normal focus:border-emerald-600 focus:outline-hidden"
+                    />
+                    <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                      4 angka paling belakang pada rekening m-Banking yang digunakan
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      👤 Nama Pemilik Rekening Pengirim (Opsional):
+                    </label>
+                    <input
+                      type="text"
+                      value={directSenderName}
+                      onChange={(e) => setDirectSenderName(e.target.value)}
+                      placeholder="Contoh: Bpk. Bambang"
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border-2 border-slate-300 font-medium text-sm text-slate-900 focus:border-emerald-600 focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      📝 Catatan Tambahan (Opsional):
+                    </label>
+                    <input
+                      type="text"
+                      value={directPaymentNotes}
+                      onChange={(e) => setDirectPaymentNotes(e.target.value)}
+                      placeholder="Contoh: Transfer via BCA Mobile"
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border-2 border-slate-300 font-medium text-xs text-slate-900 focus:border-emerald-600 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!isDirectPayValid && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-800 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Harap isi tanggal transfer atau 4 digit terakhir nomor rekening pengirim.</span>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Status akan diperbarui menjadi <strong>Menunggu Verifikasi</strong>. Miss Sarah akan memeriksa mutasi bank dan menandai lunas.
               </p>
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-800 block">
-                Pilih Metode Pembayaran yang Digunakan:
-              </label>
-
-              <label className="flex items-center gap-3 p-3 rounded-xl border-2 border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                <input
-                  type="radio"
-                  name="directPayType"
-                  value="cash"
-                  checked={paymentTypeChosen === 'cash'}
-                  onChange={() => setPaymentTypeChosen('cash')}
-                  className="w-4 h-4 text-emerald-600"
-                />
-                <div>
-                  <span className="font-extrabold text-sm text-slate-900 block">
-                    💵 Tunai / Cash Langsung
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    Membayar tunai langsung di meja resepsionis / pengajar
-                  </span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 p-3 rounded-xl border-2 border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                <input
-                  type="radio"
-                  name="directPayType"
-                  value="transfer"
-                  checked={paymentTypeChosen === 'transfer'}
-                  onChange={() => setPaymentTypeChosen('transfer')}
-                  className="w-4 h-4 text-emerald-600"
-                />
-                <div>
-                  <span className="font-extrabold text-sm text-slate-900 block">
-                    🏦 Transfer Langsung ke Rekening SPP
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    Sudah transfer via m-Banking langsung ke rekening lembaga
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Setelah diklik, status iuran akan diperbarui menjadi <strong>Menunggu Verifikasi</strong> dan pengajar akan mencocokkan mutasi kas.
-            </p>
-
-            <div className="pt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDirectPayModal(false)}
-                className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-sm"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDirectPayment}
-                className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm shadow-md"
-              >
-                Ya, Sudah Bayar
-              </button>
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDirectPayModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs sm:text-sm"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={!isDirectPayValid}
+                  onClick={handleConfirmDirectPayment}
+                  className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs sm:text-sm shadow-md flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-amber-300" />
+                  <span>Saya sudah transfer, mohon verifikasi</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal Upload Bukti Transfer */}
       {showPaymentModal && selectedRecordForPayment && (
@@ -579,30 +714,69 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
                     </label>
                   </div>
 
+                  {/* Rincian Tambahan Transfer */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-900 mb-1">
+                        📅 Tanggal Transfer:
+                      </label>
+                      <input
+                        type="date"
+                        value={proofTransferDate}
+                        onChange={(e) => setProofTransferDate(e.target.value)}
+                        className="w-full min-h-[44px] px-3 py-2 rounded-xl border-2 border-slate-300 font-bold text-sm text-slate-900 focus:border-blue-900 focus:outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-900 mb-1">
+                        💳 4 Digit Terakhir Rekening:
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={4}
+                        value={proofSenderLast4}
+                        onChange={(e) => setProofSenderLast4(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Contoh: 8812"
+                        className="w-full min-h-[44px] px-3 py-2 rounded-xl border-2 border-slate-300 font-bold text-sm tracking-widest text-slate-900 placeholder:tracking-normal focus:border-blue-900 focus:outline-hidden"
+                      />
+                    </div>
+                  </div>
+
                   {/* Nama Pengirim Rekening (Opsional) */}
                   <div>
-                    <label className="block text-sm sm:text-base font-bold text-slate-900 mb-1">
-                      Nama Pemilik Rekening Pengirim (Opsional):
+                    <label className="block text-xs font-bold text-slate-900 mb-1">
+                      👤 Nama Pemilik Rekening Pengirim (Opsional):
                     </label>
                     <input
                       type="text"
                       value={senderName}
                       onChange={(e) => setSenderName(e.target.value)}
                       placeholder="Contoh: Bpk. Bambang Pratama"
-                      className="w-full min-h-[48px] px-4 py-2.5 rounded-xl border-2 border-slate-300 focus:border-blue-900 focus:ring-2 focus:ring-blue-200 text-base font-medium outline-hidden"
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border-2 border-slate-300 focus:border-blue-900 text-sm font-medium outline-hidden"
                     />
                   </div>
 
-                  {/* Tombol Simpan Bukti */}
+                  {/* Tombol Simpan & Konfirmasi */}
                   <div className="pt-2 space-y-2.5">
-                    <button
-                      type="button"
-                      onClick={handleSubmitProof}
-                      className="w-full min-h-[52px] px-4 py-3 rounded-xl bg-blue-900 hover:bg-blue-950 active:bg-blue-800 text-white font-black text-base sm:text-lg flex items-center justify-center gap-2 shadow-md transition-all active:scale-98"
-                    >
-                      <Check className="w-5 h-5 text-amber-400" />
-                      <span>Simpan Bukti Pembayaran</span>
-                    </button>
+                    {(() => {
+                      const isProofValid =
+                        Boolean(uploadedFile) ||
+                        Boolean(proofTransferDate.trim()) ||
+                        proofSenderLast4.trim().length === 4;
+
+                      return (
+                        <button
+                          type="button"
+                          disabled={!isProofValid}
+                          onClick={handleSubmitProof}
+                          className="w-full min-h-[50px] px-4 py-3 rounded-xl bg-blue-900 hover:bg-blue-950 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-md transition-all active:scale-98"
+                        >
+                          <CheckCircle2 className="w-5 h-5 text-amber-400" />
+                          <span>Saya sudah transfer, mohon verifikasi</span>
+                        </button>
+                      );
+                    })()}
 
                     <button
                       type="button"

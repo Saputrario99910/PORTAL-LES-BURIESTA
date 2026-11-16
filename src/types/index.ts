@@ -73,6 +73,8 @@ export interface TuitionRecord {
   payment_date?: string;
   payment_method?: string;
   proof_url?: string;
+  sender_name?: string;
+  sender_last4?: string;
   notes?: string;
 }
 
