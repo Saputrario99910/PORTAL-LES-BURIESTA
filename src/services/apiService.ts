@@ -1,4 +1,10 @@
-import { supabase, isSupabaseConfigured, syncToGoogleSheets } from '../lib/supabase.ts';
+import {
+  supabase,
+  isSupabaseConfigured,
+  syncToGoogleSheets,
+  logSyncError,
+} from '../lib/supabase.ts';
+export { logSyncError };
 import {
   Student,
   AttendanceRecord,
@@ -139,27 +145,7 @@ export async function updateStudentPin(
   return { success: true, message: 'PIN berhasil diperbarui (offline mode).' };
 }
 
-/**
- * Catat Log Error Sinkronisasi Webhook
- */
-export async function logSyncError(
-  actionType: string,
-  payloadSummary: string,
-  errorMessage: string
-): Promise<void> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      await supabase.from('sync_error_logs').insert({
-        action_type: actionType,
-        payload_summary: payloadSummary,
-        error_message: errorMessage,
-        retry_status: 'failed',
-      });
-    } catch (e) {
-      console.error('Gagal mencatat sync error log:', e);
-    }
-  }
-}
+// logSyncError diekspor dari src/lib/supabase.ts
 
 /**
  * Update Foto Profil Siswa

@@ -2,8 +2,12 @@
  * =========================================================================
  * GOOGLE APPS SCRIPT: SINKRONISASI DATABASE PORTAL WALI MURID
  * Rumah Belajar English
+ * Satu Arah (One-Way Outbound Mirror): Supabase -> Google Sheets
  * =========================================================================
  */
+
+// Shared secret key untuk mengotentikasi webhook request dari Portal RBE
+var EXPECTED_WEBHOOK_SECRET = "rbe_sec_2026_wbk99";
 
 /**
  * FUNGSI SETUP UTAMA: setupDatabaseMaster()
@@ -145,64 +149,43 @@ function doPost(e) {
   try {
     var rawData = e.postData.contents;
     var request = JSON.parse(rawData);
+    var secret = request.secret;
     var action = request.action;
+    var idempotencyKey = request.idempotency_key;
     var data = request.data || {};
     var timestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
 
+    // 1. AUTENTIKASI WEBHOOK DENGAN SHARED SECRET
+    if (!secret || secret !== EXPECTED_WEBHOOK_SECRET) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "unauthorized",
+        message: "Akses ditolak: Invalid or missing webhook secret."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 2. CEK IDEMPOTENSI (Mencegah Baris Duplikat jika di-retry atau diklik ganda)
+    if (idempotencyKey) {
+      var cache = CacheService.getScriptCache();
+      var cached = cache.get("idem_" + idempotencyKey);
+      if (cached) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "duplicate_ignored",
+          message: "Transaksi duplikat diabaikan (idempotency key matched)."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      // Simpan kunci idempotensi selama 6 jam (21600 detik)
+      cache.put("idem_" + idempotencyKey, "processed", 21600);
+    }
+
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 0. VERIFIKASI LOGIN PIN WALI MURID
+    // 3. TOLAK INBOUND AUTHENTICATION DARI GOOGLE SHEETS
+    // Supabase adalah satu-satunya Source of Truth untuk data akun dan autentikasi
     if (action === "verify_pin") {
-      var studentSheet = ss.getSheetByName("Data Akun Siswa");
-      if (!studentSheet) {
-        setupDatabaseMaster();
-        studentSheet = ss.getSheetByName("Data Akun Siswa");
-      }
-
-      var rows = studentSheet.getDataRange().getValues();
-      var targetToken = (data.token || "").toLowerCase().trim();
-      var inputPin = String(data.pin || "").trim();
-
-      var foundStudent = null;
-      for (var i = 1; i < rows.length; i++) {
-        var rowToken = String(rows[i][1] || "").toLowerCase().trim();
-        var rowPin = String(rows[i][5] || "").trim();
-
-        if (rowToken === targetToken || (!targetToken && i === 1)) {
-          if (rowPin === inputPin) {
-            foundStudent = {
-              id: String(rows[i][0] || "std_01"),
-              token: String(rows[i][1] || "kenzo-404"),
-              name: String(rows[i][2] || "Kenzo Alfarizi Pratama"),
-              nickname: String(rows[i][3] || "Kenzo"),
-              class_level: String(rows[i][4] || "Primary English Explorer (Kelas 3 SD)"),
-              pin: rowPin,
-              teacher_whatsapp: String(rows[i][6] || "6281234567890"),
-              schedule: String(rows[i][7] || "Selasa & Kamis · 15.30 - 17.00 WIB"),
-              teacher_name: String(rows[i][8] || "Miss Sarah Amalia, S.Pd.")
-            };
-            break;
-          } else {
-            return ContentService.createTextOutput(JSON.stringify({
-              status: "invalid_pin",
-              message: "PIN 6-digit salah. Silakan coba lagi."
-            })).setMimeType(ContentService.MimeType.JSON);
-          }
-        }
-      }
-
-      if (foundStudent) {
-        return ContentService.createTextOutput(JSON.stringify({
-          status: "success",
-          message: "Login berhasil",
-          student: foundStudent
-        })).setMimeType(ContentService.MimeType.JSON);
-      } else {
-        return ContentService.createTextOutput(JSON.stringify({
-          status: "not_found",
-          message: "Akun siswa dengan token ini tidak ditemukan di database."
-        })).setMimeType(ContentService.MimeType.JSON);
-      }
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "deprecated",
+        message: "Akses ditolak: Verifikasi PIN telah dipindahkan ke Supabase RPC server-side."
+      })).setMimeType(ContentService.MimeType.JSON);
     }
 
     // 1. SINKRONISASI PEMBAYARAN SPP & CICILAN
