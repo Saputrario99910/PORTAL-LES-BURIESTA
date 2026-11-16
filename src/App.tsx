@@ -14,6 +14,7 @@ import { Student, TuitionRecord, InstitutionConfig } from './types/index.ts';
 import { StudentProfileHeader } from './components/StudentProfileHeader.tsx';
 import { TabNavigation, ActiveTabType } from './components/TabNavigation.tsx';
 import { PinLockScreen } from './components/PinLockScreen.tsx';
+import { AppLockScreen } from './components/AppLockScreen.tsx';
 import { AttendanceTab } from './components/AttendanceTab.tsx';
 import { ExamResultsTab } from './components/ExamResultsTab.tsx';
 import { LearningPlanTab } from './components/LearningPlanTab.tsx';
@@ -174,8 +175,35 @@ export default function App() {
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(`rbe_auth_${currentStudent.id}`);
+      sessionStorage.removeItem('rbe_session_unlocked');
     }
     setIsAuthenticated(false);
+    setIsSessionUnlocked(false);
+  };
+
+  // KUNCI APLIKASI OPSIONAL (APP LOCK: PIN / Biometrik saat portal dibuka kembali)
+  const [isAppLockEnabled, setIsAppLockEnabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('rbe_app_lock_enabled') === 'true';
+    }
+    return false;
+  });
+
+  const [isSessionUnlocked, setIsSessionUnlocked] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('rbe_session_unlocked') === 'true';
+    }
+    return false;
+  });
+
+  const handleToggleAppLock = () => {
+    setIsAppLockEnabled((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('rbe_app_lock_enabled', next ? 'true' : 'false');
+      }
+      return next;
+    });
   };
 
   // Fungsi Mengubah Foto Profil Siswa secara Dinamis
@@ -317,6 +345,29 @@ export default function App() {
     );
   }
 
+  // JIKA SUDAH LOGIN NAMUN APP LOCK DIAKTIFKAN OLEH WALI MURID & BELUM DI-UNLOCK:
+  if (isAuthenticated && isAppLockEnabled && !isSessionUnlocked) {
+    return (
+      <AppLockScreen
+        currentStudent={currentStudent}
+        onUnlockSuccess={() => {
+          setIsSessionUnlocked(true);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('rbe_session_unlocked', 'true');
+          }
+        }}
+        onDisableAppLock={() => {
+          setIsAppLockEnabled(false);
+          setIsSessionUnlocked(true);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('rbe_app_lock_enabled', 'false');
+            sessionStorage.setItem('rbe_session_unlocked', 'true');
+          }
+        }}
+      />
+    );
+  }
+
   // JIKA SUDAH LOGIN: Tampilkan Portal Belajar Siswa
   return (
     <div className="min-h-screen bg-slate-100/90 text-slate-900 pb-28 sm:pb-36">
@@ -413,6 +464,8 @@ export default function App() {
             student={currentStudent}
             onUpdateAvatar={handleUpdateStudentAvatar}
             onUpdatePin={handleUpdateStudentPin}
+            isAppLockEnabled={isAppLockEnabled}
+            onToggleAppLock={handleToggleAppLock}
           />
         </section>
 

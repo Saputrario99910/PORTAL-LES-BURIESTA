@@ -18,12 +18,16 @@ interface StudentProfileHeaderProps {
   student: Student;
   onUpdateAvatar?: (newAvatarUrl: string) => void;
   onUpdatePin?: (newPin: string) => void;
+  isAppLockEnabled?: boolean;
+  onToggleAppLock?: () => void;
 }
 
 export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
   student,
   onUpdateAvatar,
   onUpdatePin,
+  isAppLockEnabled = false,
+  onToggleAppLock,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showPinModal, setShowPinModal] = useState<boolean>(false);
@@ -191,6 +195,23 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
               <KeyRound className="w-4 h-4 text-amber-600" />
               <span>Ganti PIN Masuk</span>
             </button>
+
+            {/* Tombol Pengaturan Kunci Aplikasi (App Lock) */}
+            {onToggleAppLock && (
+              <button
+                type="button"
+                onClick={onToggleAppLock}
+                className={`inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold px-3 py-2.5 rounded-xl border transition-colors ${
+                  isAppLockEnabled
+                    ? 'bg-blue-900 text-white border-blue-950 shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                }`}
+                title="Kunci aplikasi dengan PIN / Biometrik saat portal dibuka kembali"
+              >
+                <Lock className={`w-4 h-4 ${isAppLockEnabled ? 'text-amber-300' : 'text-slate-600'}`} />
+                <span>{isAppLockEnabled ? 'Kunci App: Aktif' : 'Kunci App: Nonaktif'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
