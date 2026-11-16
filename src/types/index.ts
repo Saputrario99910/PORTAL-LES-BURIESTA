@@ -24,8 +24,18 @@ export interface Student {
   schedule: string;
   teacher_name: string;
   teacher_whatsapp: string;
-  pin: string;
+  pin?: string; // Optional: Plaintext PIN dihilangkan dari DB, hanya ada di mock data
+  pin_updated_at?: string;
   avatar_url: string;
+}
+
+export interface SyncErrorLog {
+  id?: string;
+  action_type: string;
+  payload_summary?: string;
+  error_message: string;
+  retry_status?: string;
+  created_at?: string;
 }
 
 export interface AttendanceRecord {

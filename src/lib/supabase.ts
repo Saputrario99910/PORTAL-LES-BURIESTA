@@ -20,7 +20,7 @@ export const googleSheetsWebhookUrl = import.meta.env.VITE_GOOGLE_SHEETS_WEBHOOK
  * Sinkronisasi data ke Google Sheets Webhook
  */
 export async function syncToGoogleSheets(
-  actionType: 'pembayaran_lunas' | 'catat_pembayaran' | 'absensi_baru' | 'catat_penilaian' | 'verify_pin',
+  actionType: 'pembayaran_lunas' | 'catat_pembayaran' | 'absensi_baru' | 'catat_penilaian',
   payload: any
 ) {
   if (!googleSheetsWebhookUrl) {

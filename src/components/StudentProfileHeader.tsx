@@ -10,7 +10,9 @@ import {
   X,
   ShieldCheck,
   Lock,
+  Loader2,
 } from 'lucide-react';
+import { updateStudentPin } from '../services/apiService.ts';
 
 interface StudentProfileHeaderProps {
   student: Student;
@@ -30,6 +32,7 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
   const [confirmPin, setConfirmPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
   const [pinSuccess, setPinSuccess] = useState<string>('');
+  const [isSubmittingPin, setIsSubmittingPin] = useState<boolean>(false);
 
   const handleChatTeacher = () => {
     const text = encodeURIComponent(
@@ -53,16 +56,10 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
     }
   };
 
-  const handleSaveNewPin = (e: React.FormEvent) => {
+  const handleSaveNewPin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinError('');
     setPinSuccess('');
-
-    // Validasi PIN lama
-    if (oldPin !== student.pin && oldPin !== '123456') {
-      setPinError('PIN lama yang Anda masukkan tidak sesuai.');
-      return;
-    }
 
     // Validasi 6 digit angka
     if (!/^\d{6}$/.test(newPin)) {
@@ -75,18 +72,29 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
       return;
     }
 
-    if (onUpdatePin) {
-      onUpdatePin(newPin);
+    setIsSubmittingPin(true);
+    try {
+      const res = await updateStudentPin(student.token, oldPin, newPin);
+      if (res.success) {
+        if (onUpdatePin) {
+          onUpdatePin(newPin);
+        }
+        setPinSuccess(res.message || 'PIN 6-digit berhasil diperbarui!');
+        setTimeout(() => {
+          setShowPinModal(false);
+          setOldPin('');
+          setNewPin('');
+          setConfirmPin('');
+          setPinSuccess('');
+        }, 1200);
+      } else {
+        setPinError(res.message || 'PIN lama yang Anda masukkan tidak sesuai.');
+      }
+    } catch {
+      setPinError('Terjadi kendala saat memperbarui PIN.');
+    } finally {
+      setIsSubmittingPin(false);
     }
-
-    setPinSuccess('PIN 6-digit berhasil diperbarui!');
-    setTimeout(() => {
-      setShowPinModal(false);
-      setOldPin('');
-      setNewPin('');
-      setConfirmPin('');
-      setPinSuccess('');
-    }, 1500);
   };
 
   return (
@@ -284,10 +292,15 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-950 text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5"
+                  disabled={isSubmittingPin}
+                  className="flex-1 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-950 text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  <Check className="w-4 h-4 text-amber-300" />
-                  <span>Simpan PIN Baru</span>
+                  {isSubmittingPin ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-300" />
+                  ) : (
+                    <Check className="w-4 h-4 text-amber-300" />
+                  )}
+                  <span>{isSubmittingPin ? 'Menyimpan...' : 'Simpan PIN Baru'}</span>
                 </button>
               </div>
             </form>

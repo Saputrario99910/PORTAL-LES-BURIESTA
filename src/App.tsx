@@ -92,12 +92,12 @@ export default function App() {
         if (found) return found;
       }
       const savedAvatar = localStorage.getItem('rbe_student_avatar_std_01');
-      const savedPin = localStorage.getItem('rbe_student_pin_std_01');
-      if (savedAvatar || savedPin) {
+      // Bersihkan sisa legacy plaintext PIN dari localStorage jika ada
+      localStorage.removeItem('rbe_student_pin_std_01');
+      if (savedAvatar) {
         return {
           ...mockStudents[0],
-          avatar_url: savedAvatar || mockStudents[0].avatar_url,
-          pin: savedPin || mockStudents[0].pin,
+          avatar_url: savedAvatar,
         };
       }
     }
@@ -140,14 +140,14 @@ export default function App() {
     });
   };
 
-  // Fungsi Mengubah PIN Siswa secara Mandiri
-  const handleUpdateStudentPin = (newPin: string) => {
+  // Fungsi Callback setelah PIN Siswa berhasil diubah via RPC
+  const handleUpdateStudentPin = (_newPin: string) => {
     setCurrentStudent((prev) => {
-      const updated = { ...prev, pin: newPin };
+      // Hapus data cache plaintext PIN jika sebelumnya pernah tersimpan
       if (typeof window !== 'undefined') {
-        localStorage.setItem(`rbe_student_pin_${prev.id}`, newPin);
+        localStorage.removeItem(`rbe_student_pin_${prev.id}`);
       }
-      return updated;
+      return { ...prev, pin_updated_at: new Date().toISOString() };
     });
   };
 

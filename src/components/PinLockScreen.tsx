@@ -13,7 +13,7 @@ import {
   GraduationCap,
   ChevronDown,
 } from 'lucide-react';
-import { syncToGoogleSheets } from '../lib/supabase.ts';
+import { verifyStudentPin } from '../services/apiService.ts';
 
 interface PinLockScreenProps {
   currentStudent: Student;
@@ -98,37 +98,21 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   const validatePin = async (inputPin: string) => {
     setIsLoading(true);
 
-    // 1. Cek langsung ke database Google Sheets (jika webhook aktif)
     try {
-      const res = await syncToGoogleSheets('verify_pin', {
-        token: currentStudent.token,
-        pin: inputPin,
-      });
+      // Verifikasi PIN secara aman ke server Supabase RPC (bcrypt)
+      const res = await verifyStudentPin(currentStudent.token, inputPin);
 
-      if (res.success && res.data) {
-        if (res.data.status === 'success') {
-          setIsError(false);
-          setIsLoading(false);
-          onSuccess();
-          return;
-        } else if (res.data.status === 'invalid_pin') {
-          handleFailedPin('PIN salah. Silakan periksa kembali 6 digit PIN Anda.');
-          setIsLoading(false);
-          return;
-        }
+      if (res.success) {
+        setIsError(false);
+        setIsLoading(false);
+        onSuccess();
+      } else {
+        setIsLoading(false);
+        handleFailedPin(res.message || 'PIN 6-digit salah. Silakan coba lagi.');
       }
     } catch {
-      // Fallback offline / local
-    }
-
-    // 2. Fallback validasi lokal
-    if (inputPin === currentStudent.pin || inputPin === '123456') {
-      setIsError(false);
       setIsLoading(false);
-      onSuccess();
-    } else {
-      setIsLoading(false);
-      handleFailedPin('PIN 6-digit salah. Silakan coba lagi.');
+      handleFailedPin('Terjadi kendala koneksi verifikasi PIN.');
     }
   };
 
@@ -274,7 +258,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
             </div>
           ) : (
             <span className="text-[11px] text-slate-500 font-medium">
-              PIN bawaan: <strong>{currentStudent.pin || '123456'}</strong>
+              PIN standar awal: <strong>123456</strong>
             </span>
           )}
         </div>
