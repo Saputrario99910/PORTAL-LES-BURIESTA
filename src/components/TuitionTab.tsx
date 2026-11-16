@@ -14,6 +14,8 @@ import {
   X,
   HelpCircle,
   Banknote,
+  ChevronDown,
+  Receipt,
 } from 'lucide-react';
 
 interface TuitionTabProps {
@@ -41,6 +43,14 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
   });
   const [proofSenderLast4, setProofSenderLast4] = useState<string>('');
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string>('');
+  const [expandedRecordIds, setExpandedRecordIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpandRecord = (id: string) => {
+    setExpandedRecordIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   // State untuk modal konfirmasi "Saya sudah transfer, mohon verifikasi"
   const [showDirectPayModal, setShowDirectPayModal] = useState<boolean>(false);
@@ -285,7 +295,7 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
                       <strong className="text-purple-950 font-mono font-bold">
                         {formatRupiah(paid)}
                       </strong>{' '}
-                      dari total {formatRupiah(rec.amount)}
+                      dari total {formatRupiah(rec.total_amount || rec.amount)}
                     </span>
                     {rec.notes && (
                       <span className="text-[11px] text-purple-700 italic block mt-0.5">
@@ -302,13 +312,84 @@ export const TuitionTab: React.FC<TuitionTabProps> = ({
                 </div>
               )}
 
+              {/* Rincian Item Tagihan Dinamis (Expandable Detail) */}
+              {rec.line_items && rec.line_items.length > 0 && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpandRecord(rec.id)}
+                    className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 flex items-center justify-between transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-blue-900" />
+                      <span>
+                        {expandedRecordIds[rec.id]
+                          ? 'Tutup Rincian Tagihan'
+                          : `Lihat Rincian Tagihan (${rec.line_items.length} Item)`}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-500 transform transition-transform duration-200 ${
+                        expandedRecordIds[rec.id] ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {expandedRecordIds[rec.id] && (
+                    <div className="mt-2 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                      <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between pb-1 border-b border-slate-200">
+                        <span>Komponen Tagihan</span>
+                        <span>Subtotal</span>
+                      </div>
+                      <div className="divide-y divide-slate-200/80">
+                        {rec.line_items.map((item, idx) => (
+                          <div
+                            key={item.id || idx}
+                            className="py-2 flex items-center justify-between text-xs sm:text-sm"
+                          >
+                            <div className="pr-2">
+                              <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                    item.kind === 'spp'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : item.kind === 'buku'
+                                      ? 'bg-amber-100 text-amber-900'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}
+                                >
+                                  {item.kind}
+                                </span>
+                                <span>{item.description}</span>
+                              </div>
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                {item.quantity} x {formatRupiah(item.unit_price)}
+                              </span>
+                            </div>
+                            <span className="font-mono font-bold text-slate-900 shrink-0">
+                              {formatRupiah(item.line_total)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="pt-2 border-t-2 border-slate-200 flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
+                        <span>Total Keseluruhan:</span>
+                        <span className="text-blue-900 font-mono text-base font-extrabold">
+                          {formatRupiah(rec.total_amount || rec.amount)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="pt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <span className="text-xs sm:text-sm font-semibold text-slate-600 block">
                     {isCicilan ? 'Sisa yang Harus Dibayar:' : 'Nominal Tagihan:'}
                   </span>
                   <span className="text-2xl sm:text-3xl font-black text-blue-950 font-mono">
-                    {formatRupiah(isCicilan ? remaining : rec.amount)}
+                    {formatRupiah(isCicilan ? remaining : (rec.total_amount || rec.amount))}
                   </span>
                   <span className="text-xs text-slate-500 block mt-0.5">
                     Jatuh tempo: {rec.due_date || 'Batas tgl 10 setiap bulannya'}

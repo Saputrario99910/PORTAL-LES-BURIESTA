@@ -26,17 +26,19 @@ CREATE TABLE IF NOT EXISTS public.students (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. TABEL TUITIONS (Iuran / Tagihan SPP)
+-- 3. TABEL TUITIONS (Iuran / Tagihan SPP Dinamis)
 CREATE TABLE IF NOT EXISTS public.tuitions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
     period VARCHAR(100) NOT NULL, -- Contoh: "November 2024"
     amount NUMERIC(12, 2) NOT NULL DEFAULT 250000,
+    total_amount NUMERIC(12, 2) DEFAULT 250000,
     due_date VARCHAR(50) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'belum' CHECK (status IN ('lunas', 'cicilan', 'menunggu', 'belum')),
     payment_date VARCHAR(50),
     payment_method VARCHAR(100),
     proof_url TEXT,
+    line_items JSONB DEFAULT '[]'::jsonb, -- Rincian baris tagihan dinamis (SPP, Modul/Buku, dsb)
     payment_history JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -59,6 +59,17 @@ export interface GalleryItem {
   photos?: string[]; // Multiple photos for activities like Cooking Class
 }
 
+export type InvoiceItemKind = 'spp' | 'buku' | 'kegiatan' | 'lainnya';
+
+export interface InvoiceLineItem {
+  id: string;
+  kind: InvoiceItemKind;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+}
+
 export interface TuitionRecord {
   id: string;
   student_id: string;
@@ -66,6 +77,7 @@ export interface TuitionRecord {
   period: string; // e.g. "November 2024"
   billing_type?: BillingType;
   amount: number; // Total tagihan
+  total_amount?: number; // Snapshot total dinamis dari line items
   paid_amount?: number; // Nominal yang sudah dibayarkan (untuk cicilan)
   remaining_amount?: number; // Sisa kekurangan tagihan
   due_date: string;
@@ -75,6 +87,7 @@ export interface TuitionRecord {
   proof_url?: string;
   sender_name?: string;
   sender_last4?: string;
+  line_items?: InvoiceLineItem[]; // Daftar rincian tagihan dinamis
   notes?: string;
 }
 

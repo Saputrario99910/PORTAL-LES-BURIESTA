@@ -1,3 +1,5 @@
+import { InvoiceLineItem } from '../types/index.ts';
+
 export interface AdminPaymentVerification {
   id: string;
   student_id: string;
@@ -9,8 +11,10 @@ export interface AdminPaymentVerification {
   billing_month: string;
   billing_type?: 'bulanan' | 'per_pertemuan' | 'lainnya';
   amount: number; // Total tagihan asli
+  total_amount?: number;
   paid_amount?: number; // Jumlah yang sudah dibayar
   remaining_amount?: number; // Sisa kekurangan tagihan
+  line_items?: InvoiceLineItem[];
   upload_date: string;
   proof_image_url: string;
   sender_bank: string;

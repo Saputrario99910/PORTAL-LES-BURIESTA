@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { RecurringBillingRule, AdminStudentOption } from '../../data/adminMockData.ts';
-import { X, Calendar, Settings, DollarSign, Users, AlertCircle, Check } from 'lucide-react';
+import { InvoiceLineItem, InvoiceItemKind } from '../../types/index.ts';
+import { X, Calendar, Settings, DollarSign, Users, AlertCircle, Check, Plus, Trash2, Receipt } from 'lucide-react';
 
 interface BillingSettingsModalProps {
   rules: RecurringBillingRule[];
@@ -15,6 +16,7 @@ interface BillingSettingsModalProps {
     billingMonth: string;
     targetStudentId: 'all' | string;
     dueDate: string;
+    lineItems?: InvoiceLineItem[];
   }) => void;
 }
 
@@ -42,13 +44,92 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({
 
   const [generateMonth, setGenerateMonth] = useState<string>('Desember 2024');
 
-  // State untuk form Tagihan Khusus / Tambahan
-  const [customTitle, setCustomTitle] = useState<string>('Buku Modul Semester Baru');
-  const [customType, setCustomType] = useState<'bulanan' | 'per_pertemuan' | 'lainnya'>('lainnya');
-  const [customAmount, setCustomAmount] = useState<number>(120000);
-  const [customMonth, setCustomMonth] = useState<string>('November 2024');
-  const [customDueDate, setCustomDueDate] = useState<string>('20 November 2024');
+  // State untuk form Tagihan Khusus / Invoice Dinamis (Line Items)
+  const [customTitle, setCustomTitle] = useState<string>('SPP Reguler & Uang Buku');
+  const [customType, setCustomType] = useState<'bulanan' | 'per_pertemuan' | 'lainnya'>('bulanan');
+  const [customMonth, setCustomMonth] = useState<string>('Desember 2024');
+  const [customDueDate, setCustomDueDate] = useState<string>('10 Desember 2024');
   const [targetStudentId, setTargetStudentId] = useState<'all' | string>('all');
+
+  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
+    {
+      id: 'item_1',
+      kind: 'spp',
+      description: 'SPP Reguler Periode Desember 2024',
+      quantity: 1,
+      unit_price: 250000,
+      line_total: 250000,
+    },
+    {
+      id: 'item_2',
+      kind: 'buku',
+      description: 'Uang Buku Paket Modul Level 3 & Flashcard',
+      quantity: 1,
+      unit_price: 100000,
+      line_total: 100000,
+    },
+  ]);
+
+  const totalInvoiceAmount = lineItems.reduce((acc, it) => acc + (it.line_total || 0), 0);
+
+  const addPresetSpp = () => {
+    const newItem: InvoiceLineItem = {
+      id: `item_${Date.now()}_spp`,
+      kind: 'spp',
+      description: `SPP Reguler ${customMonth}`,
+      quantity: 1,
+      unit_price: currentRule.default_amount || 250000,
+      line_total: currentRule.default_amount || 250000,
+    };
+    setLineItems((prev) => [...prev, newItem]);
+  };
+
+  const addPresetBuku = () => {
+    const newItem: InvoiceLineItem = {
+      id: `item_${Date.now()}_buku`,
+      kind: 'buku',
+      description: 'Uang Buku Paket Modul & Flashcard',
+      quantity: 1,
+      unit_price: 100000,
+      line_total: 100000,
+    };
+    setLineItems((prev) => [...prev, newItem]);
+  };
+
+  const addCustomItem = () => {
+    const newItem: InvoiceLineItem = {
+      id: `item_${Date.now()}_custom`,
+      kind: 'lainnya',
+      description: 'Item Tambahan / Biaya Kegiatan',
+      quantity: 1,
+      unit_price: 50000,
+      line_total: 50000,
+    };
+    setLineItems((prev) => [...prev, newItem]);
+  };
+
+  const updateLineItem = (id: string, field: keyof InvoiceLineItem, value: any) => {
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const updated = { ...item, [field]: value };
+        if (field === 'quantity' || field === 'unit_price') {
+          const q = Number(field === 'quantity' ? value : item.quantity) || 0;
+          const u = Number(field === 'unit_price' ? value : item.unit_price) || 0;
+          updated.line_total = q * u;
+        }
+        return updated;
+      })
+    );
+  };
+
+  const deleteLineItem = (id: string) => {
+    if (lineItems.length <= 1) {
+      alert('Minimal harus ada 1 item pada tagihan.');
+      return;
+    }
+    setLineItems((prev) => prev.filter((item) => item.id !== id));
+  };
 
   const formatRupiah = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -71,17 +152,18 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({
 
   const handleCreateCustomBill = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customTitle.trim() || customAmount <= 0) {
-      alert('Mohon isi judul tagihan dan nominal dengan benar.');
+    if (!customTitle.trim() || totalInvoiceAmount <= 0) {
+      alert('Mohon isi judul tagihan dan pastikan total nominal lebih dari 0.');
       return;
     }
     onCreateCustomBill({
       title: customTitle,
       billingType: customType,
-      amount: customAmount,
+      amount: totalInvoiceAmount,
       billingMonth: customMonth,
       targetStudentId,
       dueDate: customDueDate,
+      lineItems,
     });
   };
 
@@ -278,12 +360,12 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({
               </div>
             </div>
           ) : (
-            /* TAB 2: Tagihan Khusus / Tambahan */
+            /* TAB 2: Tagihan Khusus & Dynamic Invoice (Line Items) */
             <form onSubmit={handleCreateCustomBill} className="space-y-4">
               <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2.5">
                 <AlertCircle className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
                 <span>
-                  Gunakan form ini untuk tagihan insidental di luar SPP, seperti <strong>uang buku paket modul</strong>, <strong>biaya ujian level</strong>, atau <strong>tambahan sesi privat</strong>.
+                  Gunakan form ini untuk membuat tagihan gabungan atau khusus (misal: <strong>SPP Reguler + Uang Buku</strong>). Wali murid akan melihat total tagihan terpadu disertai rincian item.
                 </span>
               </div>
 
@@ -297,43 +379,9 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({
                     value={customTitle}
                     onChange={(e) => setCustomTitle(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:border-blue-900 outline-hidden"
-                    placeholder="Contoh: Paket Modul Book 2 & Workbook"
+                    placeholder="Contoh: SPP Reguler & Uang Buku Modul"
                     required
                   />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Tipe Tagihan
-                  </label>
-                  <select
-                    value={customType}
-                    onChange={(e) =>
-                      setCustomType(e.target.value as 'bulanan' | 'per_pertemuan' | 'lainnya')
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:border-blue-900 outline-hidden bg-white"
-                  >
-                    <option value="lainnya">Tagihan Lainnya (Modul/Kegiatan/Event)</option>
-                    <option value="bulanan">SPP Bulanan Khusus</option>
-                    <option value="per_pertemuan">Paket Sesi / Pertemuan Tambahan</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nominal Tagihan (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    step={1000}
-                    value={customAmount}
-                    onChange={(e) => setCustomAmount(Number(e.target.value) || 0)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold focus:border-blue-900 outline-hidden"
-                    required
-                  />
-                  <span className="text-[11px] text-slate-500 font-medium mt-1 block">
-                    {formatRupiah(customAmount)}
-                  </span>
                 </div>
 
                 <div>
@@ -344,7 +392,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({
                     type="text"
                     value={customMonth}
                     onChange={(e) => setCustomMonth(e.target.value)}
-                    placeholder="Contoh: November 2024"
+                    placeholder="Contoh: Desember 2024"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:border-blue-900 outline-hidden"
                     required
                   />
@@ -358,7 +406,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({
                     type="text"
                     value={customDueDate}
                     onChange={(e) => setCustomDueDate(e.target.value)}
-                    placeholder="Contoh: 25 November 2024"
+                    placeholder="Contoh: 10 Desember 2024"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:border-blue-900 outline-hidden"
                     required
                   />
@@ -383,13 +431,148 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({
                 </div>
               </div>
 
+              {/* Rincian Komponen Tagihan (Line Items) */}
+              <div className="border-t border-slate-200 pt-3 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-blue-900" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                      Komponen Item Tagihan ({lineItems.length} Item)
+                    </span>
+                  </div>
+
+                  {/* Preset Buttons */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={addPresetSpp}
+                      className="px-2.5 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-900 text-[11px] font-bold transition-colors"
+                    >
+                      + Preset SPP Reguler
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addPresetBuku}
+                      className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold transition-colors"
+                    >
+                      + Preset Uang Buku
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addCustomItem}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold transition-colors flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Item Lain</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Daftar Baris Item */}
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {lineItems.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+                    >
+                      <div className="w-full sm:w-28 shrink-0">
+                        <select
+                          value={item.kind}
+                          onChange={(e) =>
+                            updateLineItem(item.id, 'kind', e.target.value as InvoiceItemKind)
+                          }
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white outline-hidden"
+                        >
+                          <option value="spp">SPP</option>
+                          <option value="buku">Buku/Modul</option>
+                          <option value="kegiatan">Kegiatan</option>
+                          <option value="lainnya">Lainnya</option>
+                        </select>
+                      </div>
+
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                          placeholder="Deskripsi item..."
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium bg-white outline-hidden"
+                          required
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-16">
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) =>
+                              updateLineItem(item.id, 'quantity', Number(e.target.value) || 1)
+                            }
+                            className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-bold text-center bg-white outline-hidden"
+                            title="Jumlah / Qty"
+                            required
+                          />
+                        </div>
+
+                        <span className="text-xs text-slate-400">×</span>
+
+                        <div className="w-28">
+                          <input
+                            type="number"
+                            step={1000}
+                            min={0}
+                            value={item.unit_price}
+                            onChange={(e) =>
+                              updateLineItem(item.id, 'unit_price', Number(e.target.value) || 0)
+                            }
+                            className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-mono font-bold bg-white outline-hidden"
+                            title="Harga Satuan"
+                            required
+                          />
+                        </div>
+
+                        <div className="w-24 text-right font-mono font-bold text-xs text-slate-900 hidden sm:block">
+                          {formatRupiah(item.line_total)}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => deleteLineItem(item.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                          title="Hapus baris item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total Kalkulasi Otomatis */}
+                <div className="p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-emerald-900 block">
+                      Total Nominal Tagihan:
+                    </span>
+                    <span className="text-[11px] text-emerald-700">
+                      Otomatis dihitung dari {lineItems.length} komponen di atas
+                    </span>
+                  </div>
+                  <span className="text-xl sm:text-2xl font-black text-emerald-950 font-mono">
+                    {formatRupiah(totalInvoiceAmount)}
+                  </span>
+                </div>
+              </div>
+
               <div className="flex justify-end pt-3">
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-950 text-white font-extrabold text-sm shadow-md transition-all active:scale-95 flex items-center gap-2"
+                  className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-950 active:bg-blue-800 text-white font-extrabold text-sm shadow-md transition-all active:scale-95 flex items-center gap-2"
                 >
                   <Check className="w-4 h-4 text-amber-400" />
-                  <span>Terbitkan Tagihan Ini</span>
+                  <span>Terbitkan Tagihan Ini ({formatRupiah(totalInvoiceAmount)})</span>
                 </button>
               </div>
             </form>

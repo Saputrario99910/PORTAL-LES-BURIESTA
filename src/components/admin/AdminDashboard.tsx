@@ -7,6 +7,7 @@ import {
   RecurringBillingRule,
 } from '../../data/adminMockData.ts';
 import { teachingClassesData, TeachingClass } from '../../data/teachingClassesData.ts';
+import { InvoiceLineItem } from '../../types/index.ts';
 import { ProofModal } from './ProofModal.tsx';
 import { UploadGalleryModal } from './UploadGalleryModal.tsx';
 import { AttendanceModal } from './AttendanceModal.tsx';
@@ -216,7 +217,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
     showToast(`Berhasil menerbitkan ${newBills.length} tagihan ${rule.title} untuk periode ${targetMonth}!`);
   };
 
-  // 5. Buat Tagihan Khusus / Tambahan
+  // 5. Buat Tagihan Khusus / Tambahan Dinamis (Line Items)
   const handleCreateCustomBill = (billData: {
     title: string;
     billingType: 'bulanan' | 'per_pertemuan' | 'lainnya';
@@ -224,6 +225,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
     billingMonth: string;
     targetStudentId: 'all' | string;
     dueDate: string;
+    lineItems?: InvoiceLineItem[];
   }) => {
     const targetStudents =
       billData.targetStudentId === 'all'
@@ -240,8 +242,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
       billing_month: billData.billingMonth,
       billing_type: billData.billingType,
       amount: billData.amount,
+      total_amount: billData.amount,
       paid_amount: 0,
       remaining_amount: billData.amount,
+      line_items: billData.lineItems || [],
       upload_date: `Jatuh tempo: ${billData.dueDate}`,
       proof_image_url: '',
       sender_bank: 'Menunggu Pembayaran',
@@ -251,7 +255,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
 
     setPayments((prev) => [...newBills, ...prev]);
     setShowBillingModal(false);
-    showToast(`Tagihan "${billData.title}" berhasil diterbitkan untuk ${newBills.length} siswa.`);
+    showToast(
+      `Tagihan "${billData.title}" (${billData.lineItems?.length || 1} item) berhasil diterbitkan untuk ${newBills.length} siswa.`
+    );
   };
 
   const handleCopyParentLink = (item: AdminPaymentVerification) => {
