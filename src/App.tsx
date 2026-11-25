@@ -24,6 +24,7 @@ import { ChildSwitcher } from './components/ChildSwitcher.tsx';
 import { AdminDashboard } from './components/admin/AdminDashboard.tsx';
 import { TutorDashboard } from './components/tutor/TutorDashboard.tsx';
 import { ThemeTogglePill } from './components/ThemeTogglePill.tsx';
+import { InstallPwaPromptModal } from './components/InstallPwaPromptModal.tsx';
 import { ShieldCheck, RotateCcw, Building2, Edit3, X, Check, LogOut } from 'lucide-react';
 
 export default function App() {
@@ -606,6 +607,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Banner PWA 1-Klik Install ke Layar HP */}
+      <InstallPwaPromptModal />
     </div>
   );
 }
