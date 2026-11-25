@@ -8,9 +8,10 @@ interface BeforeInstallPromptEvent extends Event {
 
 export const InstallPwaPromptModal: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showPrompt, setShowPrompt] = useState<boolean>(false);
+  const [showPrompt, setShowPrompt] = useState<boolean>(true); // Langsung munculkan banner
   const [isIos, setIsIos] = useState<boolean>(false);
   const [isStandalone, setIsStandalone] = useState<boolean>(false);
+  const [showAndroidManualTip, setShowAndroidManualTip] = useState<boolean>(false);
 
   useEffect(() => {
     // Cek apakah web sudah dalam mode terinstall (standalone)
@@ -20,6 +21,7 @@ export const InstallPwaPromptModal: React.FC = () => {
 
     if (isInStandaloneMode) {
       setIsStandalone(true);
+      setShowPrompt(false);
       return;
     }
 
@@ -28,25 +30,22 @@ export const InstallPwaPromptModal: React.FC = () => {
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIos(isIosDevice);
 
-    // Cek apakah user pernah menutup banner dalam 3 hari terakhir
+    // Cek apakah user pernah menutup banner dalam 1 hari terakhir
     const dismissedUntil = localStorage.getItem('rbe_install_prompt_dismissed_until');
     if (dismissedUntil && Date.now() < Number(dismissedUntil)) {
+      setShowPrompt(false);
       return;
     }
+
+    setShowPrompt(true);
 
     // Listener browser Android/Chrome untuk memicu prompt install otomatis
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShowPrompt(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // Jika iOS, langsung tampilkan panduan 1 tap karena iOS tidak mendukung beforeinstallprompt
-    if (isIosDevice) {
-      setShowPrompt(true);
-    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -54,10 +53,23 @@ export const InstallPwaPromptModal: React.FC = () => {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-
-    // Tampilkan popup native sistem Android langsung ke layar pengguna
-    await deferredPrompt.prompt();
+    if (deferredPrompt) {
+      // Tampilkan popup native sistem Android langsung ke layar pengguna
+      try {
+        await deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setShowPrompt(false);
+        }
+        setDeferredPrompt(null);
+      } catch (err) {
+        setShowAndroidManualTip(true);
+      }
+    } else {
+      // Jika browser belum melempar event native, buka petunjuk visual 1 langkah
+      setShowAndroidManualTip(true);
+    }
+  };
     const { outcome } = await deferredPrompt.userChoice;
 
     if (outcome === 'accepted') {
@@ -114,14 +126,24 @@ export const InstallPwaPromptModal: React.FC = () => {
         {/* Tombol Eksekusi Aksi */}
         <div className="mt-3.5 pt-3 border-t border-white/15">
           {!isIos ? (
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              className="w-full py-2.5 px-4 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-blue-950 font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-98 transition-all"
-            >
-              <Download className="w-4 h-4 stroke-[2.5]" />
-              <span>Pasang Sekarang (1-Klik)</span>
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleInstallClick}
+                className="w-full py-2.5 px-4 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-blue-950 font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-98 transition-all"
+              >
+                <Download className="w-4 h-4 stroke-[2.5]" />
+                <span>Pasang Sekarang (1-Klik)</span>
+              </button>
+
+              {showAndroidManualTip && (
+                <div className="bg-white/10 rounded-xl p-2.5 text-xs text-amber-200 font-semibold space-y-1">
+                  <p className="text-[11px] text-blue-100 leading-tight">
+                    💡 <strong>Tips Tambahan:</strong> Jika popup sistem tidak muncul, cukup tap ikon <strong>titik tiga (⋮)</strong> di browser lalu pilih <strong>"Tambahkan ke Layar Utama" / "Install Aplikasi"</strong>.
+                  </p>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="bg-white/10 rounded-xl p-2.5 text-xs text-amber-200 font-semibold space-y-1">
               <div className="flex items-center gap-1.5 text-white font-extrabold">
