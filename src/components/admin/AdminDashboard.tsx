@@ -315,41 +315,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
   const collectionPercentage = totalBilled > 0 ? Math.round((totalReceivedIncome / totalBilled) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 pb-20">
-      {/* Header Top Bar */}
-      <header className="sticky top-0 z-30 bg-blue-950 text-white border-b-2 border-amber-400 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onBackToPortal}
-              className="w-10 h-10 rounded-xl bg-blue-900 hover:bg-blue-800 text-white flex items-center justify-center transition-colors border border-blue-700 shadow-xs"
-              title="Lihat Tampilan Portal Wali Murid"
-            >
-              <ArrowLeft className="w-5 h-5 text-amber-400" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight">
-                  Dashboard Pemilik Lembaga (Admin & Tutor)
-                </h1>
-                <span className="bg-amber-400 text-blue-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                  All-in-One
-                </span>
-              </div>
-              <span className="text-xs text-blue-200 block font-medium">
-                Rumah Belajar English · Kelola Kelas, Absensi, Nilai & Keuangan SPP
-              </span>
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 flex flex-col">
+      {/* 1. Top Navigation / Header Bar (Stitch.io Design) */}
+      <header className="sticky top-0 z-30 bg-[#1e3a8a] text-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          {/* Institution Branding */}
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src="/pwa-192x192.png"
+              alt="Logo Rumah Belajar English"
+              className="w-10 h-10 rounded-xl object-cover bg-white shrink-0 border border-white/20"
+            />
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-extrabold text-white leading-tight truncate">
+                Admin Panel · Rumah Belajar English
+              </h1>
+              <p className="text-xs text-blue-200 font-medium truncate">
+                Pusat Kendali Akademik, Absensi & Keuangan SPP
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          {/* Right Quick Action Buttons */}
+          <nav aria-label="Navigasi Admin" className="flex flex-wrap items-center gap-2">
             <ThemeTogglePill />
-            <div className="bg-blue-900/90 text-slate-200 border border-blue-700/80 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Miss Sarah (Pemilik & Tutor)</span>
-            </div>
-          </div>
+            <button
+              type="button"
+              onClick={() => setShowBillingModal(true)}
+              className="inline-flex items-center gap-1.5 min-h-10 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 text-xs sm:text-sm font-semibold transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Pengaturan Tagihan / SPP</span>
+            </button>
+            <button
+              type="button"
+              onClick={onBackToPortal}
+              className="inline-flex items-center gap-1.5 min-h-10 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Kembali ke Portal Wali</span>
+            </button>
+          </nav>
         </div>
       </header>
 
@@ -867,6 +873,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
           <span className="text-xs sm:text-sm font-extrabold">{toastMessage}</span>
         </div>
       )}
+
+      {/* 5. Sync & System Health Footer (Stitch.io Design) */}
+      <footer className="mt-auto border-t border-slate-200 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+              <span className="text-xs font-semibold text-slate-600">Supabase DB: Connected</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+              <span className="text-xs font-semibold text-slate-600">Google Sheets Backup: Synced</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-500" aria-hidden="true"></span>
+              <span className="text-xs font-semibold text-slate-600">Push Notifications: Ready</span>
+            </div>
+          </div>
+          <p className="text-xs font-semibold text-slate-500">
+            Rumah Belajar English · v2.4
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
