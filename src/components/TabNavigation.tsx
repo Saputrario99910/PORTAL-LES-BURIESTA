@@ -71,8 +71,8 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
 
   return (
     <>
-      {/* 1. Header Pil Segmented Control di Desktop/Tablet (Sangat Rapi & Bersih) */}
-      <div className="hidden sm:flex items-center justify-between bg-white p-1.5 rounded-2xl border-2 border-slate-200 shadow-xs gap-1">
+      {/* 1. Sticky 5-Tab Navigation Bar (Desktop & Mobile Selaras Stitch.io) */}
+      <div className="grid grid-cols-5 gap-1 p-1.5 bg-white border border-slate-200 rounded-2xl shadow-sm">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -82,19 +82,21 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
               key={tab.id}
               type="button"
               onClick={() => handleTabClick(tab.id)}
-              className={`flex-1 py-2.5 px-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${
+              className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl font-bold text-[11px] sm:text-sm min-h-14 sm:min-h-11 transition-all relative ${
                 isActive
-                  ? 'bg-blue-900 text-white shadow-sm ring-1 ring-amber-400'
+                  ? 'bg-[#1e3a8a] text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              <span>{tab.title}</span>
-              {tab.badge && (
-                <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
-                  {tab.badge}
-                </span>
-              )}
+              <div className="relative">
+                <Icon className="w-5 h-5 sm:w-4 sm:h-4" />
+                {tab.badge && (
+                  <span className="absolute -top-1.5 -right-2 bg-rose-500 text-white text-[9px] font-black px-1 rounded-full">
+                    {tab.badge}
+                  </span>
+                )}
+              </div>
+              <span className="truncate max-w-full">{tab.title}</span>
             </button>
           );
         })}
