@@ -11,8 +11,15 @@ import {
   ShieldCheck,
   Lock,
   Loader2,
+  Bell,
+  BellRing,
 } from 'lucide-react';
 import { updateStudentPin } from '../services/apiService.ts';
+import {
+  isPushNotificationSupported,
+  subscribeUserToPush,
+  unsubscribeUserFromPush,
+} from '../lib/pushNotification.ts';
 
 interface StudentProfileHeaderProps {
   student: Student;
@@ -37,6 +44,39 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
   const [pinError, setPinError] = useState<string>('');
   const [pinSuccess, setPinSuccess] = useState<string>('');
   const [isSubmittingPin, setIsSubmittingPin] = useState<boolean>(false);
+  const [isPushSubscribed, setIsPushSubscribed] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && localStorage.getItem('rbe_push_subscribed') === 'true';
+  });
+  const [isSubscribingPush, setIsSubscribingPush] = useState<boolean>(false);
+
+  const handleTogglePushNotification = async () => {
+    if (!isPushNotificationSupported()) {
+      alert('Perangkat atau browser ini tidak mendukung Web Push Notification.');
+      return;
+    }
+    setIsSubscribingPush(true);
+    try {
+      if (isPushSubscribed) {
+        const res = await unsubscribeUserFromPush();
+        if (res.success) {
+          setIsPushSubscribed(false);
+          alert(res.message);
+        } else {
+          alert(res.message);
+        }
+      } else {
+        const res = await subscribeUserToPush(student.id);
+        if (res.success) {
+          setIsPushSubscribed(true);
+          alert(res.message);
+        } else {
+          alert(res.message);
+        }
+      }
+    } finally {
+      setIsSubscribingPush(false);
+    }
+  };
 
   const handleChatTeacher = () => {
     const text = encodeURIComponent(
@@ -212,6 +252,28 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
                 <span>{isAppLockEnabled ? 'Kunci App: Aktif' : 'Kunci App: Nonaktif'}</span>
               </button>
             )}
+
+            {/* Tombol Push Notifikasi HP */}
+            <button
+              type="button"
+              onClick={handleTogglePushNotification}
+              disabled={isSubscribingPush}
+              className={`inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold px-3 py-2.5 rounded-xl border transition-colors ${
+                isPushSubscribed
+                  ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+              }`}
+              title="Terima pemberitahuan langsung di HP saat galeri atau nilai baru diunggah"
+            >
+              {isSubscribingPush ? (
+                <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+              ) : isPushSubscribed ? (
+                <BellRing className="w-4 h-4 text-amber-300" />
+              ) : (
+                <Bell className="w-4 h-4 text-slate-600" />
+              )}
+              <span>{isPushSubscribed ? 'Notifikasi HP: Aktif' : 'Aktifkan Notifikasi'}</span>
+            </button>
           </div>
         </div>
       </div>

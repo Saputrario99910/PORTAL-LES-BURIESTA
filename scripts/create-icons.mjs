@@ -1,0 +1,35 @@
+import fs from 'fs';
+import path from 'path';
+
+const publicDir = path.resolve('public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+
+// SVG icon dengan tema Sky-600 & Lambang Buku Edukasi RBE
+const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+  </defs>
+  <!-- Background Rounded Rect -->
+  <rect width="512" height="512" rx="100" fill="url(#skyGrad)"/>
+  <!-- Graduation / Book Symbol -->
+  <g transform="translate(106, 106) scale(0.585)" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M70 120 L256 30 L442 120 L256 210 Z" fill="#ffffff" fill-opacity="0.15" />
+    <path d="M120 180 V330 C120 330 180 390 256 390 C332 390 392 330 392 330 V180" />
+    <path d="M442 120 V270" />
+    <circle cx="442" cy="285" r="14" fill="#ffffff" />
+  </g>
+  <!-- Text Label RBE -->
+  <text x="256" y="440" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="4">RBE</text>
+</svg>`;
+
+fs.writeFileSync(path.join(publicDir, 'icon.svg'), svgIcon, 'utf8');
+fs.writeFileSync(path.join(publicDir, 'pwa-192x192.svg'), svgIcon, 'utf8');
+fs.writeFileSync(path.join(publicDir, 'pwa-512x512.svg'), svgIcon, 'utf8');
+
+// Buat script helper menggunakan canvas / Sharp atau script standalone base64 bila diperlukan
+console.log('SVG placeholder icons created in public/');
