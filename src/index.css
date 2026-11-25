@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Pastikan tidak pernah ada geser kanan-kiri (horizontal overflow) di layar HP */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   20%, 60% { transform: translateX(-6px); }

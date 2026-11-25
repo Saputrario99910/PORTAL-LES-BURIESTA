@@ -437,7 +437,7 @@ export default function App() {
       </header>
 
       {/* Kontainer Utama Mobile-First */}
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 pt-5 space-y-6 overflow-hidden">
+      <main className="w-full max-w-2xl mx-auto px-3 sm:px-6 pt-5 space-y-6 overflow-x-hidden">
         {/* Banner Selamat Datang Hangat */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-slate-800">
