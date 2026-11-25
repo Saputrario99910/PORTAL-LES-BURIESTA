@@ -315,7 +315,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
   const collectionPercentage = totalBilled > 0 ? Math.round((totalReceivedIncome / totalBilled) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 flex flex-col">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50 text-slate-900 pb-20 flex flex-col">
       {/* 1. Top Navigation / Header Bar (Stitch.io Design) */}
       <header className="sticky top-0 z-30 bg-[#1e3a8a] text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -360,7 +360,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToPortal }
       </header>
 
       {/* Konten Utama */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-7">
+      <main className="w-full max-w-7xl mx-auto px-3 sm:px-6 pt-6 space-y-7 overflow-x-hidden">
         
         {/* BAGIAN 1: KOTAK-KOTAK KELAS MENGAJAR (ALL-IN-ONE TUTOR & ABSENSI/NILAI) */}
         <section aria-label="Kelola Kelas Mengajar">
