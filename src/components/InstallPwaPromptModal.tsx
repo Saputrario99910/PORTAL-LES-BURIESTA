@@ -70,14 +70,6 @@ export const InstallPwaPromptModal: React.FC = () => {
       setShowAndroidManualTip(true);
     }
   };
-    const { outcome } = await deferredPrompt.userChoice;
-
-    if (outcome === 'accepted') {
-      console.log('Pengguna menyetujui pemasangan aplikasi');
-      setShowPrompt(false);
-    }
-    setDeferredPrompt(null);
-  };
 
   const handleDismiss = () => {
     setShowPrompt(false);
